@@ -15,7 +15,7 @@ A lightweight tool to monitor your OpenAI workload.
 **With `pip`**
 
 ```bash
-pip install git+https://github.com/newrelic-experimental/nr-openai-observability.git
+pip install git+https://github.com/newrelic/openai-api-monitoring.git
 ```
 
 ## Getting Started
