@@ -24,6 +24,19 @@ pip install git+https://github.com/newrelic/nr-openai-observability.git
 [Get your License key](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) (also referenced as `ingest - license`) and set it as environment variable: `NEW_RELIC_LICENSE_KEY`.
 [Click here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key) for more details and instructions.
 
+**`Bash`**
+
+```bash
+export NEW_RELIC_LICENSE_KEY=<license key>
+```
+
+**`Python`**
+
+```python
+import os
+os.environ["NEW_RELIC_LICENSE_KEY"] = "<license key>"
+```
+
 #### STEP 2: Add the following two lines to your code
 
 ```python
