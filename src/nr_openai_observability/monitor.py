@@ -26,7 +26,6 @@ class OpenAIMonitoring:
     # this class uses the telemetry SDK to record metrics to new relic, please see https://github.com/newrelic/newrelic-telemetry-sdk-python
     def __init__(
         self,
-        license_key: Optional[str] = None,
         event_client_host: Optional[str] = None,
         use_logger: Optional[bool] = None,
     ):
@@ -43,7 +42,11 @@ class OpenAIMonitoring:
         self,
         license_key: Optional[str] = None,
     ):
-        self.license_key = license_key or os.getenv("NEW_RELIC_LICENSE_KEY") or os.getenv("NEW_RELIC_INSERT_KEY")  # type: ignore
+        self.license_key = (
+            license_key
+            or os.getenv("NEW_RELIC_LICENSE_KEY")
+            or os.getenv("NEW_RELIC_INSERT_KEY")
+        )  # type: ignore
 
         if (
             not isinstance(self.license_key, str) and self.license_key is not None
@@ -116,6 +119,8 @@ def patcher_create(original_fn, *args, **kwargs):
     for i, choice in enumerate(result.get("choices")):
         choices_payload.update(flatten_dict(choice, prefix="choices", index=str(i)))
 
+    logger.debug(dict(**kwargs))
+
     event_dict = {
         **kwargs,
         "response_time": time_delta,
@@ -123,6 +128,9 @@ def patcher_create(original_fn, *args, **kwargs):
         **choices_payload,
     }
     event_dict.pop("choices")
+
+    if "messages" in event_dict:
+        event_dict["messages"] = str(kwargs.get("messages"))
 
     logger.debug(f"Reported event dictionary:\n{event_dict}")
 
@@ -140,4 +148,16 @@ def initialization(license_key: Optional[str] = None):
 
 
 def perform_patch():
-    openai.Completion.create = _patched_call(openai.Completion.create, patcher_create)
+    try:
+        openai.Completion.create = _patched_call(
+            openai.Completion.create, patcher_create
+        )
+    except AttributeError:
+        pass
+
+    try:
+        openai.ChatCompletion.create = _patched_call(
+            openai.ChatCompletion.create, patcher_create
+        )
+    except AttributeError:
+        pass
