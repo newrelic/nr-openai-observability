@@ -1,8 +1,11 @@
 [tool.poetry]
 name = "nr-openai-observability"
 version = "0.1.0"
-description = ""
+description = "A lightweight tool to monitor your OpenAI workload."
 authors = ["AIR <applied-intelligence-research-team@newrelic.com>"]
+repository = "https://github.com/newrelic/nr-openai-observability"
+readme = "README.md"
+homepage = "https://newrelic.com/instant-observability/openai"
 
 [tool.poetry.dependencies]
 python = "^3.7.1"

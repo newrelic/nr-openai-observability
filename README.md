@@ -1,11 +1,5 @@
 
-<a href="https://opensource.newrelic.com/oss-category/#community-project">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/newrelic/opensource-website/develop/src/images/categories/dark/Community_Project.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/newrelic/opensource-website/develop/src/images/categories/Community_Project.png">
-  <img alt="New Relic open source - Experimental" src="https://raw.githubusercontent.com/newrelic/opensource-website/develop/src/images/categories/Community_Project.png">
-</picture>
-</a>
+[![Community Project header](https://github.com/newrelic/open-source-office/raw/master/examples/categories/images/Community_Project.png)](https://github.com/newrelic/open-source-office/blob/master/examples/categories/index.md#category-community-project)
 
 # OpenAI Observability
 
