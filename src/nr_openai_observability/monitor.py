@@ -26,16 +26,8 @@ class OpenAIMonitoring:
     # this class uses the telemetry SDK to record metrics to new relic, please see https://github.com/newrelic/newrelic-telemetry-sdk-python
     def __init__(
         self,
-        event_client_host: Optional[str] = None,
         use_logger: Optional[bool] = None,
     ):
-        if not isinstance(event_client_host, str) and event_client_host is not None:
-            raise TypeError("event_client_host instance type must be str or None")
-
-        self.event_client_host = event_client_host or os.getenv(
-            "EVENT_CLIENT_HOST", EventClient.HOST
-        )
-
         self.use_logger = use_logger if use_logger else False
 
     def _set_license_key(
@@ -53,6 +45,18 @@ class OpenAIMonitoring:
         ) or self.license_key is None:
             raise TypeError("license_key instance type must be str and not None")
 
+    def _set_client_host(
+        self,
+        event_client_host: Optional[str] = None,
+    ):
+
+        if not isinstance(event_client_host, str) and event_client_host is not None:
+            raise TypeError("event_client_host instance type must be str or None")
+
+        self.event_client_host = event_client_host or os.getenv(
+            "EVENT_CLIENT_HOST", EventClient.HOST
+        )
+
     def _log(self, msg: str):
         if self.use_logger:
             logger.info(msg)
@@ -62,8 +66,10 @@ class OpenAIMonitoring:
     def start(
         self,
         license_key: Optional[str] = None,
+        event_client_host: Optional[str] = None,
     ):
         self._set_license_key(license_key)
+        self._set_client_host(event_client_host)
         self._start()
 
     # initialize event thread
@@ -142,8 +148,11 @@ def patcher_create(original_fn, *args, **kwargs):
 monitor = OpenAIMonitoring()
 
 
-def initialization(license_key: Optional[str] = None):
-    monitor.start(license_key)
+def initialization(
+    license_key: Optional[str] = None,
+    event_client_host: Optional[str] = None,
+):
+    monitor.start(license_key, event_client_host)
     perform_patch()
 
 
