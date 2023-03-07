@@ -30,6 +30,8 @@ export NEW_RELIC_LICENSE_KEY=<license key>
 import os
 os.environ["NEW_RELIC_LICENSE_KEY"] = "<license key>"
 ```
+`NEW_RELIC_LICENSE_KEY` can also be sent as a parameter at the `monitor.initialization()`
+ call.
 
 * Are you reporting data to the New Relic EU region? click [here](#eu-account-users) for more instructions.
 
@@ -79,7 +81,7 @@ import os
 os.environ["EVENT_CLIENT_HOST"] = "insights-collector.eu01.nr-data.net"
 ```
     
-Both `NEW_RELIC_LICENSE_KEY` and `EVENT_CLIENT_HOST` can also be sent as parameters at the `monitor.initialization()`
+`EVENT_CLIENT_HOST` can also be sent as a parameter at the `monitor.initialization()`
  call.
 
 ## Support
