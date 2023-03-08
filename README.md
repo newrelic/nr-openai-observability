@@ -14,8 +14,8 @@ pip install nr-openai-observability
 
 ## Getting Started
 
-#### STEP 1: Set Your Environment Variable 
-[Get your License key](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) (also referenced as `ingest - license`) and set it as environment variable: `NEW_RELIC_LICENSE_KEY`.
+#### STEP 1: Set Your Environment Variables 
+* [Get your License key](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) (also referenced as `ingest - license`) and set it as environment variable: `NEW_RELIC_LICENSE_KEY`.
 [Click here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key) for more details and instructions.
 
 **`Bash`**
@@ -30,6 +30,10 @@ export NEW_RELIC_LICENSE_KEY=<license key>
 import os
 os.environ["NEW_RELIC_LICENSE_KEY"] = "<license key>"
 ```
+`NEW_RELIC_LICENSE_KEY` can also be sent as a parameter at the `monitor.initialization()`
+ call.
+
+* Are you reporting data to the New Relic EU region? click [here](#eu-account-users) for more instructions.
 
 #### STEP 2: Add the following two lines to your code
 
@@ -59,6 +63,26 @@ openai.Completion.create(
     temperature=0 
 )
 ```
+
+### EU Account Users:
+
+If you are using an EU region account, you should also set your `EVENT_CLIENT_HOST`:
+
+**`Bash`**
+
+```bash
+export EVENT_CLIENT_HOST="insights-collector.eu01.nr-data.net"
+```
+
+**`Python`**
+
+```python
+import os
+os.environ["EVENT_CLIENT_HOST"] = "insights-collector.eu01.nr-data.net"
+```
+    
+`EVENT_CLIENT_HOST` can also be sent as a parameter at the `monitor.initialization()`
+ call.
 
 ## Support
 
