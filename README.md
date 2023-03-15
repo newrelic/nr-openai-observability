@@ -42,8 +42,6 @@ from nr_openai_observability import monitor
 monitor.initialization()
 ```
 
-#### STEP 3: Follow the instruction to add the dashboard to your New Relic account.
-
 #### Code example:
 
 ```python
@@ -63,6 +61,8 @@ openai.Completion.create(
     temperature=0 
 )
 ```
+
+#### STEP 3: Follow the instruction [here](https://one.newrelic.com/launcher/catalog-pack-details.launcher/?pane=eyJuZXJkbGV0SWQiOiJjYXRhbG9nLXBhY2stZGV0YWlscy5jYXRhbG9nLXBhY2stY29udGVudHMiLCJxdWlja3N0YXJ0SWQiOiI1ZGIyNWRiZC1hNmU5LTQ2ZmMtYTcyOC00Njk3ZjY3N2ZiYzYifQ==) to add the dashboard to your New Relic account.
 
 ### EU Account Users:
 
