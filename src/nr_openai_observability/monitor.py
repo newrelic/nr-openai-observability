@@ -12,10 +12,10 @@ logger = logging.getLogger("nr_openai_observability")
 EventName = "OpenAICompletion"
 
 
-def _patched_call(original_fn, patched_fn):
+def _patched_call(original_fn, patched_fn, tag):
     def _inner_patch(*args, **kwargs):
         try:
-            return patched_fn(original_fn, *args, **kwargs)
+            return patched_fn(original_fn, tag, *args, **kwargs)
         except Exception as ex:
             raise ex
 
@@ -25,29 +25,29 @@ def _patched_call(original_fn, patched_fn):
 class OpenAIMonitoring:
     # this class uses the telemetry SDK to record metrics to new relic, please see https://github.com/newrelic/newrelic-telemetry-sdk-python
     def __init__(
-        self,
-        use_logger: Optional[bool] = None,
+            self,
+            use_logger: Optional[bool] = None,
     ):
         self.use_logger = use_logger if use_logger else False
 
     def _set_license_key(
-        self,
-        license_key: Optional[str] = None,
+            self,
+            license_key: Optional[str] = None,
     ):
         self.license_key = (
-            license_key
-            or os.getenv("NEW_RELIC_LICENSE_KEY")
-            or os.getenv("NEW_RELIC_INSERT_KEY")
+                license_key
+                or os.getenv("NEW_RELIC_LICENSE_KEY")
+                or os.getenv("NEW_RELIC_INSERT_KEY")
         )  # type: ignore
 
         if (
-            not isinstance(self.license_key, str) and self.license_key is not None
+                not isinstance(self.license_key, str) and self.license_key is not None
         ) or self.license_key is None:
             raise TypeError("license_key instance type must be str and not None")
 
     def _set_client_host(
-        self,
-        event_client_host: Optional[str] = None,
+            self,
+            event_client_host: Optional[str] = None,
     ):
 
         if not isinstance(event_client_host, str) and event_client_host is not None:
@@ -64,9 +64,9 @@ class OpenAIMonitoring:
             print(msg)
 
     def start(
-        self,
-        license_key: Optional[str] = None,
-        event_client_host: Optional[str] = None,
+            self,
+            license_key: Optional[str] = None,
+            event_client_host: Optional[str] = None,
     ):
         self._set_license_key(license_key)
         self._set_client_host(event_client_host)
@@ -95,7 +95,7 @@ class OpenAIMonitoring:
         self.event_batch.record(event)
 
 
-def patcher_create(original_fn, *args, **kwargs):
+def patcher_create(original_fn, tag, *args, **kwargs):
     def flatten_dict(dd, separator=".", prefix="", index=""):
         if len(index):
             index = index + separator
@@ -132,6 +132,7 @@ def patcher_create(original_fn, *args, **kwargs):
         "response_time": time_delta,
         **flatten_dict(result.to_dict_recursive(), separator="."),
         **choices_payload,
+        "tag": tag,  # Add the tag to event_dict
     }
     event_dict.pop("choices")
 
@@ -139,6 +140,8 @@ def patcher_create(original_fn, *args, **kwargs):
         event_dict["messages"] = str(kwargs.get("messages"))
 
     logger.debug(f"Reported event dictionary:\n{event_dict}")
+
+    print(event_dict)
 
     monitor.record_event(event_dict)
 
@@ -149,24 +152,25 @@ monitor = OpenAIMonitoring()
 
 
 def initialization(
-    license_key: Optional[str] = None,
-    event_client_host: Optional[str] = None,
+        license_key: Optional[str] = None,
+        event_client_host: Optional[str] = None,
+        tag: Optional[str] = None,
 ):
     monitor.start(license_key, event_client_host)
-    perform_patch()
+    perform_patch(tag)
 
 
-def perform_patch():
+def perform_patch(tag):
     try:
         openai.Completion.create = _patched_call(
-            openai.Completion.create, patcher_create
+            openai.Completion.create, patcher_create, tag
         )
     except AttributeError:
         pass
 
     try:
         openai.ChatCompletion.create = _patched_call(
-            openai.ChatCompletion.create, patcher_create
+            openai.ChatCompletion.create, patcher_create, tag
         )
     except AttributeError:
         pass
