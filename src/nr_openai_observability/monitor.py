@@ -161,16 +161,20 @@ def initialization(
 
 
 def perform_patch(tag):
-    try:
-        openai.Completion.create = _patched_call(
-            openai.Completion.create, patcher_create, tag
-        )
-    except AttributeError:
-        pass
+    if not hasattr(openai.Completion, "is_patched"):
+        try:
+            openai.Completion.create = _patched_call(
+                openai.Completion.create, patcher_create, tag
+            )
+            openai.Completion.is_patched = True
+        except AttributeError:
+            pass
 
-    try:
-        openai.ChatCompletion.create = _patched_call(
-            openai.ChatCompletion.create, patcher_create, tag
-        )
-    except AttributeError:
-        pass
+    if not hasattr(openai.ChatCompletion, "is_patched"):
+        try:
+            openai.ChatCompletion.create = _patched_call(
+                openai.ChatCompletion.create, patcher_create, tag
+            )
+            openai.ChatCompletion.is_patched = True
+        except AttributeError:
+            pass
