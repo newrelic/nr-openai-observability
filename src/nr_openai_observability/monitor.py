@@ -45,6 +45,18 @@ class OpenAIMonitoring:
         ) or self.license_key is None:
             raise TypeError("license_key instance type must be str and not None")
 
+    def _set_environment(
+        self,
+        environment: Optional[str] = None,
+    ): 
+        self.environment = (
+            environment
+            or os.getenv("NEW_RELIC_ENVIRONMENT")
+        )
+
+        if not isinstance(self.environment, str) and self.environment is not None:
+            raise TypeError("environment instance type must be str")
+        
     def _set_client_host(
         self,
         event_client_host: Optional[str] = None,
@@ -66,9 +78,11 @@ class OpenAIMonitoring:
     def start(
         self,
         license_key: Optional[str] = None,
+        environment: Optional[str] = None,
         event_client_host: Optional[str] = None,
     ):
         self._set_license_key(license_key)
+        self._set_environment(environment)
         self._set_client_host(event_client_host)
         self._start()
 
@@ -130,6 +144,7 @@ def patcher_create(original_fn, *args, **kwargs):
     event_dict = {
         **kwargs,
         "response_time": time_delta,
+        "environment": monitor.environment,
         **flatten_dict(result.to_dict_recursive(), separator="."),
         **choices_payload,
     }
@@ -150,9 +165,10 @@ monitor = OpenAIMonitoring()
 
 def initialization(
     license_key: Optional[str] = None,
+    environment: Optional[str] = None,
     event_client_host: Optional[str] = None,
 ):
-    monitor.start(license_key, event_client_host)
+    monitor.start(license_key, environment, event_client_host)
     perform_patch()
 
 
