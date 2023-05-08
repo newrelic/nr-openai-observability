@@ -4,7 +4,7 @@ import openai
 from nr_openai_observability import monitor
 
 monitor.initialization(
-    environment="development",
+    metadata={"environment": "development"}
 )
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
