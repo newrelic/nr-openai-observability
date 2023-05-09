@@ -4,7 +4,9 @@ from nr_openai_observability import monitor
 
 
 def test_patch_response(openai_object):
-    monitor.initialization()
+    monitor.initialization(
+        metadata={"test": "test"}
+    )
     openai.api_key = (
         "some-key"  # os.getenv("OPENAI_API_KEY")
     )

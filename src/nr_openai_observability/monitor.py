@@ -2,7 +2,7 @@ import atexit
 import logging
 import os
 import time
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import openai
 from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester
@@ -57,6 +57,15 @@ class OpenAIMonitoring:
             "EVENT_CLIENT_HOST", EventClient.HOST
         )
 
+    def _set_metadata(
+        self,
+        metadata: Dict[str, Any] = {},
+    ): 
+        self.metadata = metadata
+
+        if not isinstance(metadata, Dict) and metadata is not None:
+            raise TypeError("metadata instance type must be Dict[str, Any]")
+
     def _log(self, msg: str):
         if self.use_logger:
             logger.info(msg)
@@ -66,9 +75,11 @@ class OpenAIMonitoring:
     def start(
         self,
         license_key: Optional[str] = None,
+        metadata: Dict[str, Any] = {},
         event_client_host: Optional[str] = None,
     ):
         self._set_license_key(license_key)
+        self._set_metadata(metadata)
         self._set_client_host(event_client_host)
         self._start()
 
@@ -91,6 +102,7 @@ class OpenAIMonitoring:
         atexit.register(self.event_harvester.stop)
 
     def record_event(self, event_dict: dict, table: str = EventName):
+        event_dict.update(self.metadata)
         event = Event(table, event_dict)
         self.event_batch.record(event)
 
@@ -150,9 +162,10 @@ monitor = OpenAIMonitoring()
 
 def initialization(
     license_key: Optional[str] = None,
+    metadata: Dict[str, Any] = {},
     event_client_host: Optional[str] = None,
 ):
-    monitor.start(license_key, event_client_host)
+    monitor.start(license_key, metadata, event_client_host)
     perform_patch()
 
 
