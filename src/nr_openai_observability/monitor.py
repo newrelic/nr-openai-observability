@@ -126,7 +126,23 @@ def patcher_create(original_fn, *args, **kwargs):
     )
 
     timestamp = time.time()
-    result = original_fn(*args, **kwargs)
+    try:
+        result = original_fn(*args, **kwargs)
+        status = "success"
+    except Exception as ex:
+        time_delta = time.time() - timestamp
+
+        event_dict = {
+            **kwargs,
+            "response_time": time_delta,
+            "status": "error",
+            "status_message": str(ex),
+        }
+
+        monitor.record_event(event_dict)
+
+        raise ex
+    
     time_delta = time.time() - timestamp
 
     logger.debug(
@@ -142,6 +158,7 @@ def patcher_create(original_fn, *args, **kwargs):
     event_dict = {
         **kwargs,
         "response_time": time_delta,
+        "status": status,
         **flatten_dict(result.to_dict_recursive(), separator="."),
         **choices_payload,
     }
