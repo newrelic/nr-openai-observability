@@ -35,7 +35,7 @@ class OpenAIMonitoring:
         use_logger: Optional[bool] = None,
     ):
         self.use_logger = use_logger if use_logger else False
-        self.last_api_call_headers: dict = {}
+        self.headers_by_id: dict = {}
 
     def _set_license_key(
         self,
@@ -123,8 +123,10 @@ class OpenAIMonitoring:
 def patcher_request(original_fn, *args, **kwargs):
     response = original_fn(*args, **kwargs)
 
+    openai_id = getattr(response[0], "data", {}).get("id")
+
     if len(args) > 2 and args[2] in CreateCompletionApiPaths:
-        monitor.last_api_call_headers = getattr(response[0], "_headers", {})
+        monitor.headers_by_id[openai_id] = getattr(response[0], "_headers", {})
 
     return response
 
@@ -140,12 +142,11 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
         f"Finished running function: '{original_fn.__qualname__}'. result: {result}"
     )
 
-    events = build_events(result, kwargs, monitor.last_api_call_headers)
+    events = build_events(result, kwargs, monitor.headers_by_id[result.id])
+    del monitor.headers_by_id[result.id]
     for event in events["messages"]:
         monitor.record_event(event, MessageEventName)
-    monitor.record_event(
-        events["completion"], SummeryEventName, headers=monitor.last_api_call_headers
-    )
+    monitor.record_event(events["completion"], SummeryEventName)
 
     return result
 
