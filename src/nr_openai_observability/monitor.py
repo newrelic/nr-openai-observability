@@ -19,11 +19,16 @@ CreateCompletionApiPaths = ["/chat/completions"]
 
 
 def _patched_call(original_fn, patched_fn):
+    if hasattr(original_fn, "is_patched_by_monitor"):
+        return original_fn
+
     def _inner_patch(*args, **kwargs):
         try:
             return patched_fn(original_fn, *args, **kwargs)
         except Exception as ex:
             raise ex
+
+    _inner_patch.is_patched_by_monitor = True
 
     return _inner_patch
 
