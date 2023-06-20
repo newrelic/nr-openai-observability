@@ -4,6 +4,16 @@ from datetime import datetime
 
 def build_events(response, request, response_headers):
     completion_id = str(uuid.uuid4())
+
+    ratelimit_limit_requests = response_headers.get("x-ratelimit-limit-requests")
+    ratelimit_limit_tokens = response_headers.get("x-ratelimit-limit-tokens")
+    ratelimit_reset_tokens = response_headers.get("x-ratelimit-reset-tokens")
+    ratelimit_reset_requests = response_headers.get("x-ratelimit-reset-requests")
+    ratelimit_remaining_tokens = response_headers.get("x-ratelimit-remaining-tokens")
+    ratelimit_remaining_requests = response_headers.get(
+        "x-ratelimit-remaining-requests"
+    )
+
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
@@ -20,16 +30,20 @@ def build_events(response, request, response_headers):
         "api_type": response.api_type,
         "vendor": "openAI",
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
-        "ratelimit_limit_requests": response_headers.get("x-ratelimit-limit-requests"),
-        "ratelimit_limit_tokens": response_headers.get("x-ratelimit-limit-tokens"),
-        "ratelimit_reset_tokens": response_headers.get("x-ratelimit-reset-tokens"),
-        "ratelimit_reset_requests": response_headers.get("x-ratelimit-reset-requests"),
-        "ratelimit_remaining_tokens": response_headers.get(
-            "x-ratelimit-remaining-tokens"
-        ),
-        "ratelimit_remaining_requests": response_headers.get(
-            "x-ratelimit-remaining-requests"
-        ),
+        "ratelimit_limit_requests": int(ratelimit_limit_requests)
+        if ratelimit_limit_requests.isdigit()
+        else None,
+        "ratelimit_limit_tokens": int(ratelimit_limit_tokens)
+        if ratelimit_limit_tokens.isdigit()
+        else None,
+        "ratelimit_reset_tokens": ratelimit_reset_tokens,
+        "ratelimit_reset_requests": ratelimit_reset_requests,
+        "ratelimit_remaining_tokens": int(ratelimit_remaining_tokens)
+        if ratelimit_remaining_tokens.isdigit()
+        else None,
+        "ratelimit_remaining_requests": int(ratelimit_remaining_requests)
+        if ratelimit_remaining_requests.isdigit()
+        else None,
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
     }
