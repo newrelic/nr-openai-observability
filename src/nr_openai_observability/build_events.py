@@ -1,6 +1,25 @@
 import uuid
 from datetime import datetime
 
+import openai
+
+
+def _build_messages_events(messages, completion_id, model):
+    events = []
+    for index, message in enumerate(messages):
+        currMessage = {
+            "content": message.get("content"),
+            "role": message.get("role"),
+            "completion_id": completion_id,
+            "sequence": index,
+            "model": model,
+            "vendor": "openAI",
+        }
+
+        events.append(currMessage)
+
+    return events
+
 
 def build_events(response, request, response_headers):
     completion_id = str(uuid.uuid4())
@@ -48,20 +67,39 @@ def build_events(response, request, response_headers):
         "api_version": response_headers.get("openai-version"),
     }
 
-    messages = []
+    messages = _build_messages_events(
+        request.get("messages", []) + [response.choices[0].message],
+        completion_id,
+        response.model,
+    )
 
-    for index, message in enumerate(
-        request.get("messages", []) + [response.choices[0].message]
-    ):
-        currMessage = {
-            "content": message.get("content"),
-            "role": message.get("role"),
-            "completion_id": completion_id,
-            "sequence": index,
-            "model": response.model,
-            "vendor": "openAI",
-        }
+    return {"messages": messages, "completion": completion}
 
-        messages.append(currMessage)
+
+def build_error_events(request, error):
+    completion_id = str(uuid.uuid4())
+
+    completion = {
+        "id": completion_id,
+        "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
+        "timestamp": datetime.now(),
+        "request.model": request.get("model"),
+        "temperature": request.get("temperature"),
+        "max_tokens": request.get("max_tokens"),
+        "vendor": "openAI",
+        "organization": error.organization,
+        "number_of_messages": len(request.get("messages", [])),
+        "error_status": error.http_status,
+        "error_message": error.error.message,
+        "error_type": error.error.type,
+        "error_code": error.error.code,
+        "error_param": error.error.param,
+    }
+
+    messages = _build_messages_events(
+        request.get("messages", []),
+        completion_id,
+        request.get("model"),
+    )
 
     return {"messages": messages, "completion": completion}

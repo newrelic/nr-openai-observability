@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 import openai
 from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester
 
-from nr_openai_observability.build_events import build_events
+from nr_openai_observability.build_events import build_error_events, build_events
 
 logger = logging.getLogger("nr_openai_observability")
 
@@ -141,14 +141,22 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
 
-    result = original_fn(*args, **kwargs)
+    events, result, error = None, None, None
+    try:
+        result = original_fn(*args, **kwargs)
+    except Exception as ex:
+        error = ex
 
     logger.debug(
         f"Finished running function: '{original_fn.__qualname__}'. result: {result}"
     )
 
-    events = build_events(result, kwargs, monitor.headers_by_id[result.id])
-    del monitor.headers_by_id[result.id]
+    if error:
+        events = build_error_events(kwargs, error)
+    else:
+        events = build_events(result, kwargs, monitor.headers_by_id[result.id])
+        del monitor.headers_by_id[result.id]
+
     for event in events["messages"]:
         monitor.record_event(event, MessageEventName)
     monitor.record_event(events["completion"], SummeryEventName)
