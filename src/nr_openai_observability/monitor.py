@@ -7,15 +7,19 @@ from typing import Any, Dict, Optional
 import openai
 from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester
 
-from nr_openai_observability.build_events import build_error_events, build_events
+from nr_openai_observability.build_events import (
+    build_completion_error_events,
+    build_completion_events,
+    build_embedding_error_event,
+    build_embedding_event,
+)
 
 logger = logging.getLogger("nr_openai_observability")
 
 EventName = "LlmCompletion"
 MessageEventName = "LlmChatCompletionMessage"
 SummeryEventName = "LlmChatCompletionSummary"
-
-CreateCompletionApiPaths = ["/chat/completions"]
+EmbeddingEventName = "LlmEmbedding"
 
 
 def _patched_call(original_fn, patched_fn):
@@ -125,13 +129,11 @@ class OpenAIMonitoring:
         self.event_batch.record(event)
 
 
-def patcher_request(original_fn, *args, **kwargs):
+def patcher_convert_to_openai_object(original_fn, *args, **kwargs):
     response = original_fn(*args, **kwargs)
 
-    openai_id = getattr(response[0], "data", {}).get("id")
-
-    if len(args) > 2 and args[2] in CreateCompletionApiPaths:
-        monitor.headers_by_id[openai_id] = getattr(response[0], "_headers", {})
+    if isinstance(args[0], openai.openai_response.OpenAIResponse):
+        setattr(response, "_nr_response_headers", getattr(args[0], "_headers", {}))
 
     return response
 
@@ -147,15 +149,15 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     except Exception as ex:
         error = ex
 
-    logger.debug(
-        f"Finished running function: '{original_fn.__qualname__}'. result: {result}"
-    )
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
     if error:
-        events = build_error_events(kwargs, error)
+        events = build_completion_error_events(kwargs, error)
     else:
-        events = build_events(result, kwargs, monitor.headers_by_id[result.id])
-        del monitor.headers_by_id[result.id]
+        events = build_completion_events(
+            result, kwargs, getattr(result, "_nr_response_headers")
+        )
+        delattr(result, "_nr_response_headers")
 
     for event in events["messages"]:
         monitor.record_event(event, MessageEventName)
@@ -183,12 +185,15 @@ def patcher_create_completion(original_fn, *args, **kwargs):
     )
 
     timestamp = time.time()
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
     result = original_fn(*args, **kwargs)
     time_delta = time.time() - timestamp
 
-    logger.debug(
-        f"Finished running function: '{original_fn.__qualname__}'. result: {result}"
-    )
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
     choices_payload = {}
     for i, choice in enumerate(result.get("choices")):
@@ -213,6 +218,32 @@ def patcher_create_completion(original_fn, *args, **kwargs):
     return result
 
 
+def patcher_create_embedding(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    event, result, error = None, None, None
+    try:
+        result = original_fn(*args, **kwargs)
+    except Exception as ex:
+        error = ex
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    if error:
+        event = build_embedding_error_event(kwargs, error)
+    else:
+        event = build_embedding_event(
+            result, kwargs, getattr(result, "_nr_response_headers")
+        )
+        delattr(result, "_nr_response_headers")
+
+    monitor.record_event(event, EmbeddingEventName)
+
+    return result
+
+
 monitor = OpenAIMonitoring()
 
 
@@ -228,6 +259,13 @@ def initialization(
 
 def perform_patch():
     try:
+        openai.Embedding.create = _patched_call(
+            openai.Embedding.create, patcher_create_embedding
+        )
+    except AttributeError:
+        pass
+
+    try:
         openai.Completion.create = _patched_call(
             openai.Completion.create, patcher_create_completion
         )
@@ -242,8 +280,8 @@ def perform_patch():
         pass
 
     try:
-        openai.api_requestor.APIRequestor.request = _patched_call(
-            openai.api_requestor.APIRequestor.request, patcher_request
+        openai.util.convert_to_openai_object = _patched_call(
+            openai.util.convert_to_openai_object, patcher_convert_to_openai_object
         )
     except AttributeError:
         pass
