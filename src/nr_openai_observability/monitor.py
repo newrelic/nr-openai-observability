@@ -37,6 +37,21 @@ def _patched_call(original_fn, patched_fn):
     return _inner_patch
 
 
+def _patched_call_async(original_fn, patched_fn):
+    if hasattr(original_fn, "is_patched_by_monitor"):
+        return original_fn
+
+    async def _inner_patch(*args, **kwargs):
+        try:
+            return await patched_fn(original_fn, *args, **kwargs)
+        except Exception as ex:
+            raise ex
+
+    _inner_patch.is_patched_by_monitor = True
+
+    return _inner_patch
+
+
 class OpenAIMonitoring:
     # this class uses the telemetry SDK to record metrics to new relic, please see https://github.com/newrelic/newrelic-telemetry-sdk-python
     def __init__(
@@ -142,8 +157,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
-
-    events, result, error = None, None, None
+    result, error = None, None
     try:
         result = original_fn(*args, **kwargs)
     except Exception as ex:
@@ -151,35 +165,61 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
+    return handle_create_chat_completion(result, kwargs, error)
+
+
+async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+    result, error = None, None
+    try:
+        result = await original_fn(*args, **kwargs)
+    except Exception as ex:
+        error = ex
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_create_chat_completion(result, kwargs, error)
+
+
+def handle_create_chat_completion(response, request, error):
+    events = None
     if error:
-        events = build_completion_error_events(kwargs, error)
+        events = build_completion_error_events(request, error)
     else:
         events = build_completion_events(
-            result, kwargs, getattr(result, "_nr_response_headers")
+            response, request, getattr(response, "_nr_response_headers")
         )
-        delattr(result, "_nr_response_headers")
+        delattr(response, "_nr_response_headers")
 
     for event in events["messages"]:
         monitor.record_event(event, MessageEventName)
     monitor.record_event(events["completion"], SummeryEventName)
 
-    return result
+    return response
+
+
+async def patcher_create_completion_async(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
+    result = await original_fn(*args, **kwargs)
+    time_delta = time.time() - timestamp
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_create_completion(result, time_delta, **kwargs)
 
 
 def patcher_create_completion(original_fn, *args, **kwargs):
-    def flatten_dict(dd, separator=".", prefix="", index=""):
-        if len(index):
-            index = index + separator
-        return (
-            {
-                prefix + separator + index + k if prefix else k: v
-                for kk, vv in dd.items()
-                for k, v in flatten_dict(vv, separator, kk).items()
-            }
-            if isinstance(dd, dict)
-            else {prefix: dd}
-        )
-
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
@@ -195,8 +235,25 @@ def patcher_create_completion(original_fn, *args, **kwargs):
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
+    return handle_create_completion(result, time_delta, **kwargs)
+
+
+def handle_create_completion(response, time_delta, **kwargs):
+    def flatten_dict(dd, separator=".", prefix="", index=""):
+        if len(index):
+            index = index + separator
+        return (
+            {
+                prefix + separator + index + k if prefix else k: v
+                for kk, vv in dd.items()
+                for k, v in flatten_dict(vv, separator, kk).items()
+            }
+            if isinstance(dd, dict)
+            else {prefix: dd}
+        )
+
     choices_payload = {}
-    for i, choice in enumerate(result.get("choices")):
+    for i, choice in enumerate(response.get("choices")):
         choices_payload.update(flatten_dict(choice, prefix="choices", index=str(i)))
 
     logger.debug(dict(**kwargs))
@@ -204,7 +261,7 @@ def patcher_create_completion(original_fn, *args, **kwargs):
     event_dict = {
         **kwargs,
         "response_time": time_delta,
-        **flatten_dict(result.to_dict_recursive(), separator="."),
+        **flatten_dict(response.to_dict_recursive(), separator="."),
         **choices_payload,
     }
     event_dict.pop("choices")
@@ -215,7 +272,7 @@ def patcher_create_completion(original_fn, *args, **kwargs):
     logger.debug(f"Reported event dictionary:\n{event_dict}")
     monitor.record_event(event_dict)
 
-    return result
+    return response
 
 
 def patcher_create_embedding(original_fn, *args, **kwargs):
@@ -223,7 +280,7 @@ def patcher_create_embedding(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
 
-    event, result, error = None, None, None
+    result, error = None, None
     try:
         result = original_fn(*args, **kwargs)
     except Exception as ex:
@@ -231,17 +288,38 @@ def patcher_create_embedding(original_fn, *args, **kwargs):
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
+    return handle_create_embedding(result, kwargs, error)
+
+
+async def patcher_create_embedding_async(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    result, error = None, None
+    try:
+        result = await original_fn(*args, **kwargs)
+    except Exception as ex:
+        error = ex
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_create_embedding(result, kwargs, error)
+
+
+def handle_create_embedding(response, request, error):
+    event = None
     if error:
-        event = build_embedding_error_event(kwargs, error)
+        event = build_embedding_error_event(request, error)
     else:
         event = build_embedding_event(
-            result, kwargs, getattr(result, "_nr_response_headers")
+            response, request, getattr(response, "_nr_response_headers")
         )
-        delattr(result, "_nr_response_headers")
+        delattr(response, "_nr_response_headers")
 
     monitor.record_event(event, EmbeddingEventName)
 
-    return result
+    return response
 
 
 monitor = OpenAIMonitoring()
@@ -266,6 +344,13 @@ def perform_patch():
         pass
 
     try:
+        openai.Embedding.acreate = _patched_call_async(
+            openai.Embedding.acreate, patcher_create_embedding_async
+        )
+    except AttributeError:
+        pass
+
+    try:
         openai.Completion.create = _patched_call(
             openai.Completion.create, patcher_create_completion
         )
@@ -273,8 +358,22 @@ def perform_patch():
         pass
 
     try:
+        openai.Completion.acreate = _patched_call_async(
+            openai.Completion.acreate, patcher_create_completion_async
+        )
+    except AttributeError:
+        pass
+
+    try:
         openai.ChatCompletion.create = _patched_call(
             openai.ChatCompletion.create, patcher_create_chat_completion
+        )
+    except AttributeError:
+        pass
+
+    try:
+        openai.ChatCompletion.acreate = _patched_call_async(
+            openai.ChatCompletion.acreate, patcher_create_chat_completion_async
         )
     except AttributeError:
         pass
