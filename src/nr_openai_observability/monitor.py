@@ -150,7 +150,7 @@ def patcher_create(original_fn, *args, **kwargs):
     )
 
     choices_payload = {}
-    for i, choice in enumerate(result.get("choices")):
+    for i, choice in enumerate(result.get("choices", [])):
         choices_payload.update(flatten_dict(choice, prefix="choices", index=str(i)))
 
     logger.debug(dict(**kwargs))
@@ -162,7 +162,7 @@ def patcher_create(original_fn, *args, **kwargs):
         **flatten_dict(result.to_dict_recursive(), separator="."),
         **choices_payload,
     }
-    event_dict.pop("choices")
+    event_dict.pop("choices", None)
 
     if "messages" in event_dict:
         event_dict["messages"] = str(kwargs.get("messages"))
@@ -197,6 +197,13 @@ def perform_patch():
     try:
         openai.ChatCompletion.create = _patched_call(
             openai.ChatCompletion.create, patcher_create
+        )
+    except AttributeError:
+        pass
+
+    try:
+        openai.Embedding.create = _patched_call(
+            openai.Embedding.create, patcher_create
         )
     except AttributeError:
         pass
