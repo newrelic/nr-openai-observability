@@ -30,7 +30,9 @@ def _patched_call(original_fn, patched_fn):
         try:
             return patched_fn(original_fn, *args, **kwargs)
         except Exception as ex:
-            raise ex
+            logger.error(
+                f"An error occurred while running the wrapper function for: '{original_fn.__qualname__}'.\nError: {ex}",
+            )
 
     _inner_patch.is_patched_by_monitor = True
 
