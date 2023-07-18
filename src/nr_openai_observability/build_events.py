@@ -22,30 +22,19 @@ def _build_messages_events(messages, completion_id, model):
 
 
 def _get_rate_limit_data(response_headers):
-    ratelimit_limit_requests = response_headers.get("x-ratelimit-limit-requests")
-    ratelimit_limit_tokens = response_headers.get("x-ratelimit-limit-tokens")
-    ratelimit_reset_tokens = response_headers.get("x-ratelimit-reset-tokens")
-    ratelimit_reset_requests = response_headers.get("x-ratelimit-reset-requests")
-    ratelimit_remaining_tokens = response_headers.get("x-ratelimit-remaining-tokens")
-    ratelimit_remaining_requests = response_headers.get(
-        "x-ratelimit-remaining-requests"
-    )
+    def _get_numeric_header(name):
+        header = response_headers.get(name)
+        return int(header) if header and header.isdigit() else None
 
     return {
-        "ratelimit_limit_requests": int(ratelimit_limit_requests)
-        if ratelimit_limit_requests.isdigit()
-        else None,
-        "ratelimit_limit_tokens": int(ratelimit_limit_tokens)
-        if ratelimit_limit_tokens.isdigit()
-        else None,
-        "ratelimit_reset_tokens": ratelimit_reset_tokens,
-        "ratelimit_reset_requests": ratelimit_reset_requests,
-        "ratelimit_remaining_tokens": int(ratelimit_remaining_tokens)
-        if ratelimit_remaining_tokens.isdigit()
-        else None,
-        "ratelimit_remaining_requests": int(ratelimit_remaining_requests)
-        if ratelimit_remaining_requests.isdigit()
-        else None,
+        "ratelimit_limit_requests": _get_numeric_header("ratelimit_limit_requests"),
+        "ratelimit_limit_tokens": _get_numeric_header("ratelimit_limit_tokens"),
+        "ratelimit_reset_tokens": response_headers.get("x-ratelimit-reset-tokens"),
+        "ratelimit_reset_requests": response_headers.get("x-ratelimit-reset-requests"),
+        "ratelimit_remaining_tokens": _get_numeric_header("ratelimit_remaining_tokens"),
+        "ratelimit_remaining_requests": _get_numeric_header(
+            "ratelimit_remaining_requests"
+        ),
     }
 
 
