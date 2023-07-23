@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional
 import openai
 from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester
 
+from nr_openai_observability.error_handling_decorator import handle_errors
+
 from nr_openai_observability.build_events import (
     build_completion_error_events,
     build_completion_events,
@@ -30,9 +32,7 @@ def _patched_call(original_fn, patched_fn):
         try:
             return patched_fn(original_fn, *args, **kwargs)
         except Exception as ex:
-            logger.error(
-                f"An error occurred while running the wrapper function for: '{original_fn.__qualname__}'.\nError: {ex}",
-            )
+            raise ex
 
     _inner_patch.is_patched_by_monitor = True
 
@@ -159,32 +159,35 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
-    result, error = None, None
+    result = None
     try:
         result = original_fn(*args, **kwargs)
     except Exception as ex:
-        error = ex
+        handle_create_chat_completion(result, kwargs, ex)
+        raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_chat_completion(result, kwargs, error)
+    return handle_create_chat_completion(result, kwargs, None)
 
 
 async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
-    result, error = None, None
+    result = None
     try:
         result = await original_fn(*args, **kwargs)
     except Exception as ex:
-        error = ex
+        handle_create_chat_completion(result, kwargs, ex)
+        raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_chat_completion(result, kwargs, error)
+    return handle_create_chat_completion(result, kwargs, None)
 
 
+@handle_errors
 def handle_create_chat_completion(response, request, error):
     events = None
     if error:
@@ -240,6 +243,7 @@ def patcher_create_completion(original_fn, *args, **kwargs):
     return handle_create_completion(result, time_delta, **kwargs)
 
 
+@handle_errors
 def handle_create_completion(response, time_delta, **kwargs):
     def flatten_dict(dd, separator=".", prefix="", index=""):
         if len(index):
@@ -282,15 +286,16 @@ def patcher_create_embedding(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
 
-    result, error = None, None
+    result = None
     try:
         result = original_fn(*args, **kwargs)
     except Exception as ex:
-        error = ex
+        handle_create_embedding(result, kwargs, ex)
+        raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_embedding(result, kwargs, error)
+    return handle_create_embedding(result, kwargs, None)
 
 
 async def patcher_create_embedding_async(original_fn, *args, **kwargs):
@@ -298,17 +303,19 @@ async def patcher_create_embedding_async(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
 
-    result, error = None, None
+    result = None
     try:
         result = await original_fn(*args, **kwargs)
     except Exception as ex:
-        error = ex
-
+        handle_create_embedding(result, kwargs, ex)
+        raise ex
+    
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_embedding(result, kwargs, error)
+    return handle_create_embedding(result, kwargs, None)
 
 
+@handle_errors
 def handle_create_embedding(response, request, error):
     event = None
     if error:
