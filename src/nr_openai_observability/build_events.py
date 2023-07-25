@@ -14,6 +14,7 @@ def _build_messages_events(messages, completion_id, model):
             "sequence": index,
             "model": model,
             "vendor": "openAI",
+            "ingest_source": "PythonSDK",
         }
 
         events.append(currMessage)
@@ -56,6 +57,7 @@ def build_completion_events(response, request, response_headers):
         "finish_reason": response.choices[0].finish_reason,
         "api_type": response.api_type,
         "vendor": "openAI",
+        "ingest_source": "PythonSDK",
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
@@ -83,6 +85,7 @@ def build_completion_error_events(request, error):
         "temperature": request.get("temperature"),
         "max_tokens": request.get("max_tokens"),
         "vendor": "openAI",
+        "ingest_source": "PythonSDK",
         "organization": error.organization,
         "number_of_messages": len(request.get("messages", [])),
         "error_status": error.http_status,
@@ -115,6 +118,7 @@ def build_embedding_event(response, request, response_headers):
         "usage.prompt_tokens": response.usage.prompt_tokens,
         "api_type": response.api_type,
         "vendor": "openAI",
+        "ingest_source": "PythonSDK",
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
     }
@@ -132,6 +136,7 @@ def build_embedding_error_event(request, error):
         "timestamp": datetime.now(),
         "request.model": request.get("model"),
         "vendor": "openAI",
+        "ingest_source": "PythonSDK",
         "organization": error.organization,
         "error_status": error.http_status,
         "error_message": error.error.message,

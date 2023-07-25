@@ -7,14 +7,13 @@ from typing import Any, Dict, Optional
 import openai
 from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester
 
-from nr_openai_observability.error_handling_decorator import handle_errors
-
 from nr_openai_observability.build_events import (
     build_completion_error_events,
     build_completion_events,
     build_embedding_error_event,
     build_embedding_event,
 )
+from nr_openai_observability.error_handling_decorator import handle_errors
 
 logger = logging.getLogger("nr_openai_observability")
 
@@ -309,7 +308,7 @@ async def patcher_create_embedding_async(original_fn, *args, **kwargs):
     except Exception as ex:
         handle_create_embedding(result, kwargs, ex)
         raise ex
-    
+
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
     return handle_create_embedding(result, kwargs, None)
