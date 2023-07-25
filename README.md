@@ -52,7 +52,7 @@ import openai
 from nr_openai_observability import monitor
 
 monitor.initialization(
-    application_name=OpenAI observability example
+    application_name="OpenAI observability example"
 )
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
