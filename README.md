@@ -39,7 +39,9 @@ os.environ["NEW_RELIC_LICENSE_KEY"] = "<license key>"
 
 ```python
 from nr_openai_observability import monitor
-monitor.initialization()
+monitor.initialization(
+    application_name="OpenAI observability example"
+)
 ```
 
 #### Code example:
