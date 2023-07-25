@@ -59,7 +59,7 @@ monitor.initialization(
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 response = openai.ChatCompletion.create(
-    engine="gpt-3.5-turbo",
+    model="gpt-3.5-turbo",
     messages=[
         {
             "role": "user",
