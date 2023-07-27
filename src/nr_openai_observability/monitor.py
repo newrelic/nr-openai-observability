@@ -28,6 +28,12 @@ def _patched_call(original_fn, patched_fn):
         return original_fn
 
     def _inner_patch(*args, **kwargs):
+        if kwargs.get("stream") is True:
+            logger.warning(
+                "stream = True is not supported by nr_openai_observability. Ignoring monitoring for this function call"
+            )
+            return original_fn(*args, **kwargs)
+
         try:
             return patched_fn(original_fn, *args, **kwargs)
         except Exception as ex:
