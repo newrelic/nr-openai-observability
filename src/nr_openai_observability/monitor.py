@@ -49,6 +49,11 @@ def _patched_call_async(original_fn, patched_fn):
         return original_fn
 
     async def _inner_patch(*args, **kwargs):
+        if kwargs.get("stream") is True:
+            logger.warning(
+                "stream = True is not supported by nr_openai_observability. Ignoring monitoring for this function call"
+            )
+            return await original_fn(*args, **kwargs)
         try:
             return await patched_fn(original_fn, *args, **kwargs)
         except Exception as ex:
