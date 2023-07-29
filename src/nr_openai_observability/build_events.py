@@ -8,7 +8,7 @@ def _build_messages_events(messages, completion_id, model):
     events = []
     for index, message in enumerate(messages):
         currMessage = {
-            "content": message.get("content"),
+            "content": message.get("content")[:4095],
             "role": message.get("role"),
             "completion_id": completion_id,
             "sequence": index,
