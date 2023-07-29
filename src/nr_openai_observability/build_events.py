@@ -39,14 +39,14 @@ def _get_rate_limit_data(response_headers):
     }
 
 
-def build_completion_events(response, request, response_headers):
+def build_completion_events(response, request, response_headers, response_time):
     completion_id = str(uuid.uuid4())
 
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
-        "response_time": response.response_ms,
+        "response_time": int(response_time * 1000),
         "request.model": request.get("model"),
         "response.model": response.model,
         "usage.completion_tokens": response.usage.completion_tokens,
@@ -104,14 +104,14 @@ def build_completion_error_events(request, error):
     return {"messages": messages, "completion": completion}
 
 
-def build_embedding_event(response, request, response_headers):
+def build_embedding_event(response, request, response_headers, response_time):
     embedding_id = str(uuid.uuid4())
 
     embedding = {
         "id": embedding_id,
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
-        "response_time": response.response_ms,
+        "response_time": int(response_time * 1000),
         "request.model": request.get("model"),
         "response.model": response.model,
         "usage.total_tokens": response.usage.total_tokens,

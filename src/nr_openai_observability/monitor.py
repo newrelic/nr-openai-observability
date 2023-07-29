@@ -169,42 +169,47 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
-    result = None
+    
+    result, time_delta = None, None
     try:
+        timestamp = time.time()
         result = original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
     except Exception as ex:
-        handle_create_chat_completion(result, kwargs, ex)
+        handle_create_chat_completion(result, kwargs, ex, time_delta)
         raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_chat_completion(result, kwargs, None)
+    return handle_create_chat_completion(result, kwargs, None, time_delta)
 
 
 async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
-    result = None
+    result, time_delta = None, None
     try:
+        timestamp = time.time()
         result = await original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
     except Exception as ex:
-        handle_create_chat_completion(result, kwargs, ex)
+        handle_create_chat_completion(result, kwargs, ex, time_delta)
         raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_chat_completion(result, kwargs, None)
+    return handle_create_chat_completion(result, kwargs, None, time_delta)
 
 
 @handle_errors
-def handle_create_chat_completion(response, request, error):
+def handle_create_chat_completion(response, request, error, response_time):
     events = None
     if error:
         events = build_completion_error_events(request, error)
     else:
         events = build_completion_events(
-            response, request, getattr(response, "_nr_response_headers")
+            response, request, getattr(response, "_nr_response_headers"), response_time
         )
         delattr(response, "_nr_response_headers")
 
@@ -296,16 +301,18 @@ def patcher_create_embedding(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
 
-    result = None
+    result, time_delta = None, None
     try:
+        timestamp = time.time()
         result = original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
     except Exception as ex:
-        handle_create_embedding(result, kwargs, ex)
+        handle_create_embedding(result, kwargs, ex, time_delta)
         raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_embedding(result, kwargs, None)
+    return handle_create_embedding(result, kwargs, None, time_delta)
 
 
 async def patcher_create_embedding_async(original_fn, *args, **kwargs):
@@ -313,26 +320,28 @@ async def patcher_create_embedding_async(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
 
-    result = None
+    result, time_delta = None, None
     try:
+        timestamp = time.time()
         result = await original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
     except Exception as ex:
-        handle_create_embedding(result, kwargs, ex)
+        handle_create_embedding(result, kwargs, ex, time_delta)
         raise ex
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_embedding(result, kwargs, None)
+    return handle_create_embedding(result, kwargs, None, time_delta)
 
 
 @handle_errors
-def handle_create_embedding(response, request, error):
+def handle_create_embedding(response, request, error, response_time):
     event = None
     if error:
         event = build_embedding_error_event(request, error)
     else:
         event = build_embedding_event(
-            response, request, getattr(response, "_nr_response_headers")
+            response, request, getattr(response, "_nr_response_headers"), response_time
         )
         delattr(response, "_nr_response_headers")
 
