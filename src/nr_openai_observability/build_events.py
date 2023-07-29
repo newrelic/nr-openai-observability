@@ -5,9 +5,11 @@ import openai
 
 
 def _build_messages_events(messages, completion_id, model):
+    message_id = str(uuid.uuid4())
     events = []
     for index, message in enumerate(messages):
         currMessage = {
+            "id": message_id,
             "content": message.get("content")[:4095],
             "role": message.get("role"),
             "completion_id": completion_id,
