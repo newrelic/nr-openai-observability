@@ -49,7 +49,7 @@ def build_completion_events(response, request, response_headers, response_time):
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
         "response_time": int(response_time * 1000),
-        "request.model": request.get("model"),
+        "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
         "usage.completion_tokens": response.usage.completion_tokens,
         "usage.total_tokens": response.usage.total_tokens,
@@ -83,7 +83,7 @@ def build_completion_error_events(request, error):
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
         "timestamp": datetime.now(),
-        "request.model": request.get("model"),
+        "request.model": request.get("model") or request.get("engine"),
         "temperature": request.get("temperature"),
         "max_tokens": request.get("max_tokens"),
         "vendor": "openAI",
@@ -100,7 +100,7 @@ def build_completion_error_events(request, error):
     messages = _build_messages_events(
         request.get("messages", []),
         completion_id,
-        request.get("model"),
+        request.get("model") or request.get("engine"),
     )
 
     return {"messages": messages, "completion": completion}
@@ -114,7 +114,7 @@ def build_embedding_event(response, request, response_headers, response_time):
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
         "response_time": int(response_time * 1000),
-        "request.model": request.get("model"),
+        "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
         "usage.total_tokens": response.usage.total_tokens,
         "usage.prompt_tokens": response.usage.prompt_tokens,
@@ -136,7 +136,7 @@ def build_embedding_error_event(request, error):
         "id": embedding_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
         "timestamp": datetime.now(),
-        "request.model": request.get("model"),
+        "request.model": request.get("model") or request.get("engine"),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
         "organization": error.organization,
