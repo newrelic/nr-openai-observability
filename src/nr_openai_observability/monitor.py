@@ -72,6 +72,7 @@ class OpenAIMonitoring:
     ):
         self.use_logger = use_logger if use_logger else False
         self.headers_by_id: dict = {}
+        self.initialized = False
 
     def _set_license_key(
         self,
@@ -121,11 +122,13 @@ class OpenAIMonitoring:
         metadata: Dict[str, Any] = {},
         event_client_host: Optional[str] = None,
     ):
-        self.application_name = application_name
-        self._set_license_key(license_key)
-        self._set_metadata(metadata)
-        self._set_client_host(event_client_host)
-        self._start()
+        if not self.initialized:
+            self.application_name = application_name
+            self._set_license_key(license_key)
+            self._set_metadata(metadata)
+            self._set_client_host(event_client_host)
+            self._start()
+            self.initialized = True
 
     # initialize event thread
     def _start(self):
@@ -361,6 +364,7 @@ def initialization(
 ):
     monitor.start(application_name, license_key, metadata, event_client_host)
     perform_patch()
+    return monitor
 
 
 def perform_patch():
