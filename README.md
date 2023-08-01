@@ -39,7 +39,9 @@ os.environ["NEW_RELIC_LICENSE_KEY"] = "<license key>"
 
 ```python
 from nr_openai_observability import monitor
-monitor.initialization()
+monitor.initialization(
+    application_name="OpenAI observability example"
+)
 ```
 
 #### Code example:
@@ -51,15 +53,21 @@ import os
 import openai
 from nr_openai_observability import monitor
 
-monitor.initialization()
+monitor.initialization(
+    application_name="OpenAI observability example"
+)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
-openai.Completion.create(
-    model="text-davinci-003",
-    prompt="What is Observability?",
-    max_tokens=20,
-    temperature=0 
+response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {
+            "role": "user",
+            "content": "Write a rhythm about observability",
+        },
+    ],
 )
+print(response["choices"][0]["message"]["content"])
 ```
 
 #### STEP 3: Follow the instruction [here](https://one.newrelic.com/launcher/catalog-pack-details.launcher/?pane=eyJuZXJkbGV0SWQiOiJjYXRhbG9nLXBhY2stZGV0YWlscy5jYXRhbG9nLXBhY2stY29udGVudHMiLCJxdWlja3N0YXJ0SWQiOiI1ZGIyNWRiZC1hNmU5LTQ2ZmMtYTcyOC00Njk3ZjY3N2ZiYzYifQ==) to add the dashboard to your New Relic account.
