@@ -111,6 +111,7 @@ def build_embedding_event(response, request, response_headers, response_time):
 
     embedding = {
         "id": embedding_id,
+        "input": request.get("input")[:4095],
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
         "response_time": int(response_time * 1000),
