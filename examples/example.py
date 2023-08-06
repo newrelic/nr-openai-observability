@@ -4,6 +4,7 @@ import openai
 from nr_openai_observability import monitor
 
 monitor.initialization(
+    application_name="OpenAI observability example",
     metadata={"environment": "development"}
 )
 

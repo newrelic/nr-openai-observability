@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, Optional
 
 import openai
-from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester
+from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester, Span, SpanBatch, SpanClient
 
 from nr_openai_observability.build_events import (
     build_completion_error_events,
@@ -148,6 +148,19 @@ class OpenAIMonitoring:
         # Why? To send the remaining data...
         atexit.register(self.event_harvester.stop)
 
+        self.span_client = SpanClient(
+            self.license_key,
+            host=self.event_client_host,
+        )
+
+        self.span_batch = SpanBatch()
+
+        # Background thread that flushes the batch
+        self.span_harvester = Harvester(self.span_client, self.span_batch)
+        self.span_harvester.start()
+
+        atexit.register(self.span_harvester.stop)
+
     def record_event(
         self,
         event_dict: dict,
@@ -157,6 +170,15 @@ class OpenAIMonitoring:
         event_dict.update(self.metadata)
         event = Event(table, event_dict)
         self.event_batch.record(event)
+
+    def record_span(
+        self,
+        span: Span
+    ):
+        span["attributes"]["applicationName"] = self.application_name
+        span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"
+        span.update(self.metadata)
+        self.span_batch.record(span)
 
 
 def patcher_convert_to_openai_object(original_fn, *args, **kwargs):
