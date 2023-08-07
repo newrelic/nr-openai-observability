@@ -176,7 +176,8 @@ class OpenAIMonitoring:
         span: Span
     ):
         span["attributes"]["applicationName"] = self.application_name
-        span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"
+        span["attributes"]["service.name"] = self.application_name
+        span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"        
         span.update(self.metadata)
         self.span_batch.record(span)
 

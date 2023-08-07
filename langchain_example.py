@@ -23,6 +23,7 @@ agent = initialize_agent(
     tools,
     llm,
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    callbacks=[new_relic_monitor],
 )
 
 agent.run("What is 2 + 2?", callbacks=[new_relic_monitor])
