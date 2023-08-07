@@ -15,6 +15,14 @@ from nr_openai_observability.build_events import (
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 
+from nr_openai_observability.build_events import (
+    build_completion_error_events,
+    build_completion_events,
+    build_embedding_error_event,
+    build_embedding_event,
+)
+from nr_openai_observability.error_handling_decorator import handle_errors
+
 logger = logging.getLogger("nr_openai_observability")
 
 EventName = "LlmCompletion"
@@ -122,6 +130,7 @@ class OpenAIMonitoring:
         metadata: Dict[str, Any] = {},
         event_client_host: Optional[str] = None,
     ):
+       
         if not self.initialized:
             self.application_name = application_name
             self._set_license_key(license_key)
@@ -161,6 +170,7 @@ class OpenAIMonitoring:
 
         atexit.register(self.span_harvester.stop)
 
+        
     def record_event(
         self,
         event_dict: dict,
@@ -180,6 +190,104 @@ class OpenAIMonitoring:
         span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"        
         span.update(self.metadata)
         self.span_batch.record(span)
+
+
+def patcher_convert_to_openai_object(original_fn, *args, **kwargs):
+    response = original_fn(*args, **kwargs)
+
+    if isinstance(args[0], openai.openai_response.OpenAIResponse):
+        setattr(response, "_nr_response_headers", getattr(args[0], "_headers", {}))
+
+    return response
+
+
+def patcher_create_chat_completion(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+    
+    result, time_delta = None, None
+    try:
+        timestamp = time.time()
+        result = original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
+    except Exception as ex:
+        handle_create_chat_completion(result, kwargs, ex, time_delta)
+        raise ex
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_create_chat_completion(result, kwargs, None, time_delta)
+
+
+async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+    result, time_delta = None, None
+    try:
+        timestamp = time.time()
+        result = await original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
+    except Exception as ex:
+        handle_create_chat_completion(result, kwargs, ex, time_delta)
+        raise ex
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_create_chat_completion(result, kwargs, None, time_delta)
+
+
+@handle_errors
+def handle_create_chat_completion(response, request, error, response_time):
+    events = None
+    if error:
+        events = build_completion_error_events(request, error)
+    else:
+        events = build_completion_events(
+            response, request, getattr(response, "_nr_response_headers"), response_time
+        )
+        delattr(response, "_nr_response_headers")
+
+    for event in events["messages"]:
+        monitor.record_event(event, MessageEventName)
+    monitor.record_event(events["completion"], SummeryEventName)
+
+    return response
+
+
+async def patcher_create_completion_async(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
+    result = await original_fn(*args, **kwargs)
+    time_delta = time.time() - timestamp
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_create_completion(result, time_delta, **kwargs)
+
+
+def patcher_create_completion(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    timestamp = time.time()
+    result = original_fn(*args, **kwargs)
+    time_delta = time.time() - timestamp
 
 
 def patcher_convert_to_openai_object(original_fn, *args, **kwargs):

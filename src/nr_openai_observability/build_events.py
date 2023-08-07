@@ -5,11 +5,10 @@ import openai
 
 
 def _build_messages_events(messages, completion_id, model):
-    message_id = str(uuid.uuid4())
     events = []
     for index, message in enumerate(messages):
         currMessage = {
-            "id": message_id,
+            "id": str(uuid.uuid4()),
             "content": message.get("content")[:4095],
             "role": message.get("role"),
             "completion_id": completion_id,
@@ -111,6 +110,7 @@ def build_embedding_event(response, request, response_headers, response_time):
 
     embedding = {
         "id": embedding_id,
+        "input": request.get("input")[:4095],
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
         "response_time": int(response_time * 1000),
