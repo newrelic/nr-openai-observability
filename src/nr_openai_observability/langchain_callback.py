@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
@@ -12,6 +12,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
         self,
         application_name: str,
+        langchain_callback_metadata: Dict[str, Any] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize callback handler."""
@@ -19,9 +20,10 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
         self.new_relic_monitor = monitor.initialization(
             application_name=application_name,
-            parent_span_id_callback=self.parent_id_callback,
+            parent_span_id_callback=self.parent_id_callback,  # may not be asyncio safe
             **kwargs,
         )
+        self.langchain_callback_metadata = langchain_callback_metadata
         self.spans_stack = deque()
         self.tool_invocation_counter = 0
 
@@ -58,11 +60,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "temperature": invocation_params.get("temperature"),
         }
 
-        parent_span = self.spans_stack[-1] if self.spans_stack else None
-        parent_span_id = parent_span["id"] if parent_span else None
-        self.spans_stack.append(
-            Span(name="LlmCompletion", tags=tags, parent_id=parent_span_id)
-        )
+        self.spans_stack.append(self.create_span(name="LlmCompletion", tags=tags))
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
@@ -71,10 +69,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run when LLM ends running."""
         tags = {}
         span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
         assert span["attributes"]["name"] == "LlmCompletion"
-        self.new_relic_monitor.record_span(span)
+        self.finish_and_record_span(span, tags)
 
     def on_llm_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
@@ -82,10 +78,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run when LLM errors."""
         tags = {"error": str(error)}
         span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
         assert span["attributes"]["name"] == "LlmCompletion"
-        self.new_relic_monitor.record_span(span)
+        self.finish_and_record_span(span, tags)
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
@@ -97,11 +91,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "start_tags": str(kwargs.get("tags")),
             "start_metadata": str(kwargs.get("metadata")),
         }
-        parent_span = self.spans_stack[-1] if self.spans_stack else None
-        parent_span_id = parent_span["id"] if parent_span else None
-        self.spans_stack.append(
-            Span(name="LlmChain", tags=tags, parent_id=parent_span_id)
-        )
+        self.spans_stack.append(self.create_span(name="LlmChain", tags=tags))
 
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
@@ -111,10 +101,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "end_tags": str(kwargs.get("tags")),
         }
         span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
         assert span["attributes"]["name"] == "LlmChain"
-        self.new_relic_monitor.record_span(span)
+        self.finish_and_record_span(span, tags)
 
     def on_chain_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
@@ -122,10 +110,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run when chain errors."""
         tags = {error: str(error)}
         span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
         assert span["attributes"]["name"] == "LlmChain"
-        self.new_relic_monitor.record_span(span)
+        self.finish_and_record_span(span, tags)
 
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
@@ -136,11 +122,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "tool_description": serialized.get("description"),
             "tool_input": input_str,
         }
-        parent_span = self.spans_stack[-1] if self.spans_stack else None
-        parent_span_id = parent_span["id"] if parent_span else None
-        self.spans_stack.append(
-            Span(name="LlmTool", tags=tags, parent_id=parent_span_id)
-        )
+        self.spans_stack.append(self.create_span(name="LlmTool", tags=tags))
 
     def on_tool_end(self, output: str, **kwargs: Any) -> Any:
         """Run when tool ends running."""
@@ -149,12 +131,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "tool_invocation_counter": self.get_and_update_tool_invocation_counter(),
         }
         span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
+
         assert span["attributes"]["name"] == "LlmTool"
         tool_name = kwargs.get("name")
         assert span["attributes"]["tool_name"] == tool_name
-        self.new_relic_monitor.record_span(span)
+
+        self.finish_and_record_span(span, tags)
 
     def on_tool_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
@@ -164,12 +146,11 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "error": error,
         }
         span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
         assert span["attributes"]["name"] == "LlmTool"
         tool_name = kwargs.get("name")
         assert span["attributes"]["tool_name"] == tool_name
-        self.new_relic_monitor.record_span(span)
+
+        self.finish_and_record_span(span, tags)
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
@@ -205,3 +186,37 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def parent_id_callback(self) -> str:
         parent_span = self.spans_stack[-1] if self.spans_stack else None
         return parent_span["id"] if parent_span else None
+
+    def create_span(
+        self,
+        name: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
+        guid: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        parent_id: Optional[str] = None,
+        start_time_ms: Optional[int] = None,
+        duration_ms: Optional[int] = None,
+    ):
+        if parent_id is None:
+            parent_span = self.spans_stack[-1] if self.spans_stack else None
+            parent_id = parent_span["id"] if parent_span else None
+
+        if self.langchain_callback_metadata:
+            tags = tags or {}
+            tags.update(self.langchain_callback_metadata)
+
+        span = Span(
+            name,
+            tags,
+            guid,
+            trace_id,
+            parent_id,
+            start_time_ms,
+            duration_ms,
+        )
+        return span
+
+    def finish_and_record_span(self, span: Span, tags: Optional[Dict[str, Any]] = None):
+        span["attributes"].update(tags or {})
+        span.finish()
+        self.new_relic_monitor.record_span(span)
