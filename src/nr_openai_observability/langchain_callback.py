@@ -1,4 +1,5 @@
 from collections import deque
+import sys
 from typing import Any, Dict, List, Optional, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -204,6 +205,11 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         if self.langchain_callback_metadata:
             tags = tags or {}
             tags.update(self.langchain_callback_metadata)
+
+        if trace_id is None and "newrelic" in sys.modules:
+            import newrelic.agent
+            trace_id = newrelic.agent.current_transaction().trace_id
+
 
         span = Span(
             name,
