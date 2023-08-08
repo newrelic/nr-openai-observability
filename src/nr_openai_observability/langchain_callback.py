@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -5,9 +6,6 @@ from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 from newrelic_telemetry_sdk import Span
 
 from nr_openai_observability import monitor
-from nr_openai_observability.monitor import monitor as new_relic_monitor
-
-from collections import deque
 
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
@@ -19,14 +17,14 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Initialize callback handler."""
         self.application_name = application_name
 
-        monitor.initialization(
+        self.new_relic_monitor = monitor.initialization(
             application_name=application_name,
             parent_span_id_callback=self.parent_id_callback,
             **kwargs,
         )
         self.spans_stack = deque()
         self.tool_invocation_counter = 0
-    
+
     def get_and_update_tool_invocation_counter(self):
         self.tool_invocation_counter += 1
         return self.tool_invocation_counter
@@ -42,7 +40,10 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         print()
 
     def on_chat_model_start(
-        self, serialized: Dict[str, Any], messages: List[List[BaseMessage]], **kwargs: Any
+        self,
+        serialized: Dict[str, Any],
+        messages: List[List[BaseMessage]],
+        **kwargs: Any,
     ) -> Any:
         """Run when Chat Model starts running."""
         invocation_params = kwargs.get("invocation_params", {})
@@ -59,8 +60,10 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
         parent_span = self.spans_stack[-1] if self.spans_stack else None
         parent_span_id = parent_span["id"] if parent_span else None
-        self.spans_stack.append(Span(name="LlmCompletion", tags=tags, parent_id=parent_span_id))
-    
+        self.spans_stack.append(
+            Span(name="LlmCompletion", tags=tags, parent_id=parent_span_id)
+        )
+
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
 
@@ -71,75 +74,73 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         span["attributes"].update(tags)
         span.finish()
         assert span["attributes"]["name"] == "LlmCompletion"
-        new_relic_monitor.record_span(span)
+        self.new_relic_monitor.record_span(span)
 
     def on_llm_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when LLM errors."""
-        tags = {
-            "error": str(error)
-        }
+        tags = {"error": str(error)}
         span = self.spans_stack.pop()
         span["attributes"].update(tags)
         span.finish()
         assert span["attributes"]["name"] == "LlmCompletion"
-        new_relic_monitor.record_span(span)
+        self.new_relic_monitor.record_span(span)
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
     ) -> Any:
         """Run when chain starts running."""
         tags = {
-                "input": inputs.get("input"),
-                "run_id": str(kwargs.get("run_id")),
-                "start_tags": str(kwargs.get("tags")),
-                "start_metadata": str(kwargs.get("metadata")),
-            }
+            "input": inputs.get("input"),
+            "run_id": str(kwargs.get("run_id")),
+            "start_tags": str(kwargs.get("tags")),
+            "start_metadata": str(kwargs.get("metadata")),
+        }
         parent_span = self.spans_stack[-1] if self.spans_stack else None
         parent_span_id = parent_span["id"] if parent_span else None
-        self.spans_stack.append(Span(name="LlmChain", tags=tags, parent_id=parent_span_id))
-        
+        self.spans_stack.append(
+            Span(name="LlmChain", tags=tags, parent_id=parent_span_id)
+        )
 
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
         tags = {
-                "outputs": outputs.get("output"),
-                "run_id": str(kwargs.get("run_id")),
-                "end_tags": str(kwargs.get("tags")),
-            }
-        span = self.spans_stack.pop()
-        span["attributes"].update(tags)
-        span.finish()
-        assert span["attributes"]["name"] == "LlmChain"
-        new_relic_monitor.record_span(span)
-
-
-    def on_chain_error(
-        self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
-    ) -> Any:
-        """Run when chain errors."""
-        tags = {
-            error: str(error)
+            "outputs": outputs.get("output"),
+            "run_id": str(kwargs.get("run_id")),
+            "end_tags": str(kwargs.get("tags")),
         }
         span = self.spans_stack.pop()
         span["attributes"].update(tags)
         span.finish()
         assert span["attributes"]["name"] == "LlmChain"
-        new_relic_monitor.record_span(span)
+        self.new_relic_monitor.record_span(span)
+
+    def on_chain_error(
+        self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
+    ) -> Any:
+        """Run when chain errors."""
+        tags = {error: str(error)}
+        span = self.spans_stack.pop()
+        span["attributes"].update(tags)
+        span.finish()
+        assert span["attributes"]["name"] == "LlmChain"
+        self.new_relic_monitor.record_span(span)
 
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> Any:
         """Run when tool starts running."""
         tags = {
-                "tool_name": serialized.get("name"),
-                "tool_description": serialized.get("description"),
-                "tool_input": input_str,
-        }   
+            "tool_name": serialized.get("name"),
+            "tool_description": serialized.get("description"),
+            "tool_input": input_str,
+        }
         parent_span = self.spans_stack[-1] if self.spans_stack else None
         parent_span_id = parent_span["id"] if parent_span else None
-        self.spans_stack.append(Span(name="LlmTool", tags=tags, parent_id=parent_span_id))
+        self.spans_stack.append(
+            Span(name="LlmTool", tags=tags, parent_id=parent_span_id)
+        )
 
     def on_tool_end(self, output: str, **kwargs: Any) -> Any:
         """Run when tool ends running."""
@@ -153,7 +154,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         assert span["attributes"]["name"] == "LlmTool"
         tool_name = kwargs.get("name")
         assert span["attributes"]["tool_name"] == tool_name
-        new_relic_monitor.record_span(span)
+        self.new_relic_monitor.record_span(span)
 
     def on_tool_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
@@ -168,7 +169,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         assert span["attributes"]["name"] == "LlmTool"
         tool_name = kwargs.get("name")
         assert span["attributes"]["tool_name"] == tool_name
-        new_relic_monitor.record_span(span)
+        self.new_relic_monitor.record_span(span)
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
@@ -176,21 +177,21 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
         """Run on agent action."""
         tags = {
-                "tool_name": action.tool,
-                "tool_input": action.tool_input,
-                "log": action.log,
-                "run_id": str(kwargs.get("run_id")),
-                "tags": str(kwargs.get("tags")),
-                "metadata": str(kwargs.get("metadata")),
-            }
-        new_relic_monitor.record_event(
+            "tool_name": action.tool,
+            "tool_input": action.tool_input,
+            "log": action.log,
+            "run_id": str(kwargs.get("run_id")),
+            "tags": str(kwargs.get("tags")),
+            "metadata": str(kwargs.get("metadata")),
+        }
+        self.new_relic_monitor.record_event(
             tags,
             table="LlmOnAgentAction",
         )
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
-        new_relic_monitor.record_event(
+        self.new_relic_monitor.record_event(
             {
                 "return_values": finish.return_values.get("output"),
                 "log": finish.log,
@@ -200,8 +201,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             },
             table="LlmOnAgentFinish",
         )
-    
+
     def parent_id_callback(self) -> str:
         parent_span = self.spans_stack[-1] if self.spans_stack else None
         return parent_span["id"] if parent_span else None
-

@@ -2,7 +2,7 @@ import atexit
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import openai
 from newrelic_telemetry_sdk import (Event, EventBatch, EventClient, Harvester,
