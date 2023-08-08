@@ -1,5 +1,6 @@
-from collections import deque
+import random
 import sys
+from collections import deque
 from typing import Any, Dict, List, Optional, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -27,6 +28,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self.langchain_callback_metadata = langchain_callback_metadata
         self.spans_stack = deque()
         self.tool_invocation_counter = 0
+        self.trace_id = "%016x" % random.getrandbits(64)
 
     def get_and_update_tool_invocation_counter(self):
         self.tool_invocation_counter += 1
@@ -206,10 +208,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             tags = tags or {}
             tags.update(self.langchain_callback_metadata)
 
-        if trace_id is None and "newrelic" in sys.modules:
+        if not trace_id and "newrelic" in sys.modules:
             import newrelic.agent
+
             trace_id = newrelic.agent.current_transaction().trace_id
 
+        trace_id = trace_id or self.trace_id
 
         span = Span(
             name,
