@@ -2,7 +2,7 @@ import atexit
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import openai
 from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester, Span, SpanBatch, SpanClient
@@ -129,8 +129,9 @@ class OpenAIMonitoring:
         license_key: Optional[str] = None,
         metadata: Dict[str, Any] = {},
         event_client_host: Optional[str] = None,
+        parent_span_id_callback: Optional[callable] = None,
     ):
-       
+
         if not self.initialized:
             self.application_name = application_name
             self._set_license_key(license_key)
@@ -138,6 +139,7 @@ class OpenAIMonitoring:
             self._set_client_host(event_client_host)
             self._start()
             self.initialized = True
+            self.parent_span_id_callback = parent_span_id_callback
 
     # initialize event thread
     def _start(self):
@@ -179,6 +181,10 @@ class OpenAIMonitoring:
         event_dict["applicationName"] = self.application_name
         event_dict.update(self.metadata)
         event = Event(table, event_dict)
+        # for c in self.callback:
+        #     metadata = c(event)
+        #     if metadata:
+        #         event.update(metadata)
         self.event_batch.record(event)
 
     def record_span(
@@ -189,105 +195,35 @@ class OpenAIMonitoring:
         span["attributes"]["service.name"] = self.application_name
         span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"        
         span.update(self.metadata)
+        # for c in self.callback:
+        #     metadata = c(span)
+        #     if metadata:
+        #         span["attributes"].update(metadata)
         self.span_batch.record(span)
 
+    def create_span(
+        self,
+        name: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
+        guid: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        parent_id: Optional[str] = None,
+        start_time_ms: Optional[int] = None,
+        duration_ms: Optional[int] = None,
+    ):
+        if parent_id is None and self.parent_span_id_callback:
+            parent_id = self.parent_span_id_callback()
 
-def patcher_convert_to_openai_object(original_fn, *args, **kwargs):
-    response = original_fn(*args, **kwargs)
-
-    if isinstance(args[0], openai.openai_response.OpenAIResponse):
-        setattr(response, "_nr_response_headers", getattr(args[0], "_headers", {}))
-
-    return response
-
-
-def patcher_create_chat_completion(original_fn, *args, **kwargs):
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-    
-    result, time_delta = None, None
-    try:
-        timestamp = time.time()
-        result = original_fn(*args, **kwargs)
-        time_delta = time.time() - timestamp
-    except Exception as ex:
-        handle_create_chat_completion(result, kwargs, ex, time_delta)
-        raise ex
-
-    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
-
-    return handle_create_chat_completion(result, kwargs, None, time_delta)
-
-
-async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-    result, time_delta = None, None
-    try:
-        timestamp = time.time()
-        result = await original_fn(*args, **kwargs)
-        time_delta = time.time() - timestamp
-    except Exception as ex:
-        handle_create_chat_completion(result, kwargs, ex, time_delta)
-        raise ex
-
-    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
-
-    return handle_create_chat_completion(result, kwargs, None, time_delta)
-
-
-@handle_errors
-def handle_create_chat_completion(response, request, error, response_time):
-    events = None
-    if error:
-        events = build_completion_error_events(request, error)
-    else:
-        events = build_completion_events(
-            response, request, getattr(response, "_nr_response_headers"), response_time
+        span = Span(
+            name,
+            tags,
+            guid,
+            trace_id,
+            parent_id,
+            start_time_ms,
+            duration_ms,
         )
-        delattr(response, "_nr_response_headers")
-
-    for event in events["messages"]:
-        monitor.record_event(event, MessageEventName)
-    monitor.record_event(events["completion"], SummeryEventName)
-
-    return response
-
-
-async def patcher_create_completion_async(original_fn, *args, **kwargs):
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-
-    timestamp = time.time()
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-
-    timestamp = time.time()
-    result = await original_fn(*args, **kwargs)
-    time_delta = time.time() - timestamp
-
-    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
-
-    return handle_create_completion(result, time_delta, **kwargs)
-
-
-def patcher_create_completion(original_fn, *args, **kwargs):
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-
-    timestamp = time.time()
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-
-    timestamp = time.time()
-    result = original_fn(*args, **kwargs)
-    time_delta = time.time() - timestamp
+        return span
 
 
 def patcher_convert_to_openai_object(original_fn, *args, **kwargs):
@@ -305,17 +241,20 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     )
     
     result, time_delta = None, None
+    span = monitor.create_span()
     try:
         timestamp = time.time()
         result = original_fn(*args, **kwargs)
         time_delta = time.time() - timestamp
     except Exception as ex:
-        handle_create_chat_completion(result, kwargs, ex, time_delta)
+        span.finish()
+        handle_create_chat_completion(result, kwargs, ex, time_delta, span)
         raise ex
+    span.finish()
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_chat_completion(result, kwargs, None, time_delta)
+    return handle_create_chat_completion(result, kwargs, None, time_delta, span)
 
 
 async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
@@ -323,21 +262,24 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
     result, time_delta = None, None
+    span = monitor.create_span()
     try:
         timestamp = time.time()
         result = await original_fn(*args, **kwargs)
         time_delta = time.time() - timestamp
     except Exception as ex:
-        handle_create_chat_completion(result, kwargs, ex, time_delta)
+        span.finish()
+        handle_create_chat_completion(result, kwargs, ex, time_delta, span)
         raise ex
+    span.finish()
 
     logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-    return handle_create_chat_completion(result, kwargs, None, time_delta)
+    return handle_create_chat_completion(result, kwargs, None, time_delta, span)
 
 
 @handle_errors
-def handle_create_chat_completion(response, request, error, response_time):
+def handle_create_chat_completion(response, request, error, response_time, span: Span = None):
     events = None
     if error:
         events = build_completion_error_events(request, error)
@@ -350,16 +292,14 @@ def handle_create_chat_completion(response, request, error, response_time):
     for event in events["messages"]:
         monitor.record_event(event, MessageEventName)
     monitor.record_event(events["completion"], SummeryEventName)
+    if span:
+        span["attributes"].update(events["completion"])
+        monitor.record_span(span)
 
     return response
 
 
 async def patcher_create_completion_async(original_fn, *args, **kwargs):
-    logger.debug(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-
-    timestamp = time.time()
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
@@ -492,8 +432,9 @@ def initialization(
     license_key: Optional[str] = None,
     metadata: Dict[str, Any] = {},
     event_client_host: Optional[str] = None,
+    parent_span_id_callback: Optional[callable] = None
 ):
-    monitor.start(application_name, license_key, metadata, event_client_host)
+    monitor.start(application_name, license_key, metadata, event_client_host, parent_span_id_callback)
     perform_patch()
     return monitor
 

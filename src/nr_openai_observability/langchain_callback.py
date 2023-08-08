@@ -18,7 +18,10 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Initialize callback handler."""
         self.application_name = application_name
 
-        monitor.initialization(application_name=application_name)
+        monitor.initialization(
+            application_name=application_name,
+            parent_span_id_callback=self.parent_id_callback,
+        )
         self.spans_stack = deque()
         self.tool_invocation_counter = 0
     
@@ -164,10 +167,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
-        print(f"on_text")
-        print("text", text)
-        print("kwargs", kwargs)
-        print()
 
     def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
         """Run on agent action."""
@@ -196,3 +195,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             },
             table="LlmOnAgentFinish",
         )
+    
+    def parent_id_callback(self) -> str:
+        parent_span = self.spans_stack[-1] if self.spans_stack else None
+        return parent_span["id"] if parent_span else None
+

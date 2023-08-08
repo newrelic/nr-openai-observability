@@ -46,7 +46,6 @@ def build_completion_events(response, request, response_headers, response_time):
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
-        "timestamp": datetime.now(),
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
@@ -81,7 +80,6 @@ def build_completion_error_events(request, error):
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
-        "timestamp": datetime.now(),
         "request.model": request.get("model") or request.get("engine"),
         "temperature": request.get("temperature"),
         "max_tokens": request.get("max_tokens"),
