@@ -90,20 +90,12 @@ class OpenAIMonitoring:
     def _set_client_host(
         self,
         event_client_host: Optional[str] = None,
-        trace_client_host: Optional[str] = None,
     ):
         if not isinstance(event_client_host, str) and event_client_host is not None:
             raise TypeError("event_client_host instance type must be str or None")
 
-        if not isinstance(trace_client_host, str) and trace_client_host is not None:
-            raise TypeError("trace_client_host instance type must be str or None")
-
         self.event_client_host = event_client_host or os.getenv(
             "EVENT_CLIENT_HOST", EventClient.HOST
-        )
-
-        self.trace_client_host = trace_client_host or os.getenv(
-            "TRACE_CLIENT_HOST", SpanClient.HOST
         )
 
     def _set_metadata(
