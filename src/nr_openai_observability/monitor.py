@@ -5,22 +5,12 @@ import time
 from typing import Any, Dict, List, Optional, Union
 
 import openai
-from newrelic_telemetry_sdk import Event, EventBatch, EventClient, Harvester, Span, SpanBatch, SpanClient
+from newrelic_telemetry_sdk import (Event, EventBatch, EventClient, Harvester,
+                                    Span, SpanBatch, SpanClient)
 
 from nr_openai_observability.build_events import (
-    build_completion_error_events,
-    build_completion_events,
-    build_embedding_error_event,
-    build_embedding_event,
-)
-from nr_openai_observability.error_handling_decorator import handle_errors
-
-from nr_openai_observability.build_events import (
-    build_completion_error_events,
-    build_completion_events,
-    build_embedding_error_event,
-    build_embedding_event,
-)
+    build_completion_error_events, build_completion_events,
+    build_embedding_error_event, build_embedding_event)
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 logger = logging.getLogger("nr_openai_observability")
@@ -130,16 +120,17 @@ class OpenAIMonitoring:
         metadata: Dict[str, Any] = {},
         event_client_host: Optional[str] = None,
         parent_span_id_callback: Optional[callable] = None,
+        metadata_callback: Optional[callable] = None,
     ):
-
         if not self.initialized:
             self.application_name = application_name
             self._set_license_key(license_key)
             self._set_metadata(metadata)
             self._set_client_host(event_client_host)
+            self.parent_span_id_callback = parent_span_id_callback
+            self.metadata_callback = metadata_callback
             self._start()
             self.initialized = True
-            self.parent_span_id_callback = parent_span_id_callback
 
     # initialize event thread
     def _start(self):
@@ -172,7 +163,6 @@ class OpenAIMonitoring:
 
         atexit.register(self.span_harvester.stop)
 
-        
     def record_event(
         self,
         event_dict: dict,
@@ -181,24 +171,21 @@ class OpenAIMonitoring:
         event_dict["applicationName"] = self.application_name
         event_dict.update(self.metadata)
         event = Event(table, event_dict)
-        # for c in self.callback:
-        #     metadata = c(event)
-        #     if metadata:
-        #         event.update(metadata)
+        if self.metadata_callback:
+            metadata = self.metadata_callback(event)
+            if metadata:
+                event.update(metadata)
         self.event_batch.record(event)
 
-    def record_span(
-        self,
-        span: Span
-    ):
+    def record_span(self, span: Span):
         span["attributes"]["applicationName"] = self.application_name
         span["attributes"]["service.name"] = self.application_name
-        span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"        
+        span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"
         span.update(self.metadata)
-        # for c in self.callback:
-        #     metadata = c(span)
-        #     if metadata:
-        #         span["attributes"].update(metadata)
+        if self.metadata_callback:
+            metadata = self.metadata_callback(span)
+            if metadata:
+                span["attributes"].update(metadata)
         self.span_batch.record(span)
 
     def create_span(
@@ -239,7 +226,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
-    
+
     result, time_delta = None, None
     span = monitor.create_span()
     try:
@@ -279,7 +266,9 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
 
 
 @handle_errors
-def handle_create_chat_completion(response, request, error, response_time, span: Span = None):
+def handle_create_chat_completion(
+    response, request, error, response_time, span: Span = None
+):
     events = None
     if error:
         events = build_completion_error_events(request, error)
@@ -432,9 +421,17 @@ def initialization(
     license_key: Optional[str] = None,
     metadata: Dict[str, Any] = {},
     event_client_host: Optional[str] = None,
-    parent_span_id_callback: Optional[callable] = None
+    parent_span_id_callback: Optional[callable] = None,
+    metadata_callback: Optional[callable] = None,
 ):
-    monitor.start(application_name, license_key, metadata, event_client_host, parent_span_id_callback)
+    monitor.start(
+        application_name,
+        license_key,
+        metadata,
+        event_client_host,
+        parent_span_id_callback,
+        metadata_callback,
+    )
     perform_patch()
     return monitor
 

@@ -14,6 +14,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
         self,
         application_name: str,
+        **kwargs: Any,
     ) -> None:
         """Initialize callback handler."""
         self.application_name = application_name
@@ -21,6 +22,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         monitor.initialization(
             application_name=application_name,
             parent_span_id_callback=self.parent_id_callback,
+            **kwargs,
         )
         self.spans_stack = deque()
         self.tool_invocation_counter = 0
@@ -58,6 +60,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         parent_span = self.spans_stack[-1] if self.spans_stack else None
         parent_span_id = parent_span["id"] if parent_span else None
         self.spans_stack.append(Span(name="LlmCompletion", tags=tags, parent_id=parent_span_id))
+    
+    def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
+        """Run on new LLM token. Only available when streaming is enabled."""
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
