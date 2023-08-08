@@ -283,6 +283,7 @@ def handle_create_chat_completion(
     monitor.record_event(events["completion"], SummeryEventName)
     if span:
         span["attributes"].update(events["completion"])
+        span["attributes"]["name"] = SummeryEventName
         monitor.record_span(span)
 
     return response
