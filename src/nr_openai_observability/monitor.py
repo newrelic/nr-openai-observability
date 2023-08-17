@@ -179,7 +179,6 @@ class OpenAIMonitoring:
 
     def record_span(self, span: Span):
         span["attributes"]["applicationName"] = self.application_name
-        span["attributes"]["service.name"] = self.application_name
         span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"
         span.update(self.metadata)
         if self.metadata_callback:
