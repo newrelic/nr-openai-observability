@@ -172,9 +172,12 @@ class OpenAIMonitoring:
         event_dict.update(self.metadata)
         event = Event(table, event_dict)
         if self.metadata_callback:
-            metadata = self.metadata_callback(event)
-            if metadata:
-                event.update(metadata)
+            try:
+                metadata = self.metadata_callback(event)
+                if metadata:
+                    event.update(metadata)
+            except Exception as ex:
+                logger.warning("Failed to run metadata callback: {ex}")
         self.event_batch.record(event)
 
     def record_span(self, span: Span):
