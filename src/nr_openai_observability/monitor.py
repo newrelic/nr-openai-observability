@@ -182,9 +182,12 @@ class OpenAIMonitoring:
         span["attributes"]["instrumentation.provider"] = "llm_observability_sdk"
         span.update(self.metadata)
         if self.metadata_callback:
-            metadata = self.metadata_callback(span)
-            if metadata:
-                span["attributes"].update(metadata)
+            try:
+                metadata = self.metadata_callback(span)
+                if metadata:
+                    span["attributes"].update(metadata)
+            except Exception as ex:
+                logger.warning("Failed to run metadata callback: {ex}")
         self.span_batch.record(span)
 
     def create_span(
