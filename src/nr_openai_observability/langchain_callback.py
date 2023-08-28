@@ -160,31 +160,31 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
         """Run on agent action."""
-        tags = {
-            "tool_name": action.tool,
-            "tool_input": action.tool_input,
-            "log": action.log,
-            "run_id": str(kwargs.get("run_id")),
-            "tags": str(kwargs.get("tags")),
-            "metadata": str(kwargs.get("metadata")),
-        }
-        self.new_relic_monitor.record_event(
-            tags,
-            table="LlmOnAgentAction",
-        )
+        # tags = {
+        #     "tool_name": action.tool,
+        #     "tool_input": action.tool_input,
+        #     "log": action.log,
+        #     "run_id": str(kwargs.get("run_id")),
+        #     "tags": str(kwargs.get("tags")),
+        #     "metadata": str(kwargs.get("metadata")),
+        # }
+        # self.new_relic_monitor.record_event(
+        #     tags,
+        #     table="LlmOnAgentAction",
+        # )
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
-        self.new_relic_monitor.record_event(
-            {
-                "return_values": finish.return_values.get("output"),
-                "log": finish.log,
-                "run_id": str(kwargs.get("run_id")),
-                "tags": str(kwargs.get("tags")),
-                "metadata": str(kwargs.get("metadata")),
-            },
-            table="LlmOnAgentFinish",
-        )
+        # self.new_relic_monitor.record_event(
+        #     {
+        #         "return_values": finish.return_values.get("output"),
+        #         "log": finish.log,
+        #         "run_id": str(kwargs.get("run_id")),
+        #         "tags": str(kwargs.get("tags")),
+        #         "metadata": str(kwargs.get("metadata")),
+        #     },
+        #     table="LlmOnAgentFinish",
+        # )
 
     def parent_id_callback(self) -> str:
         parent_span = self.spans_stack[-1] if self.spans_stack else None
