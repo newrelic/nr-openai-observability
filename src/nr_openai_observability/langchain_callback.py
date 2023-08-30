@@ -38,6 +38,11 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
         """Run when LLM starts running."""
+        tags = {
+            "prompt": prompts[0],
+            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
+        }
+        self.spans_stack.append(self.create_span(name="LlmCompletion", tags=tags))
 
     def on_chat_model_start(
         self,
@@ -63,9 +68,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
 
+
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
-        tags = {}
+        tags = {
+            "response": response.generations[0][0].text,
+        }
         span = self.spans_stack.pop()
         assert span["attributes"]["name"] == "LlmCompletion"
         self.finish_and_record_span(span, tags)
