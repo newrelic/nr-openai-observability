@@ -62,6 +62,8 @@ def build_completion_events(response, request, response_headers, response_time):
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
+        "openai_id": response.id,
+        "openai_created": response.created
     }
 
     completion.update(_get_rate_limit_data(response_headers))
