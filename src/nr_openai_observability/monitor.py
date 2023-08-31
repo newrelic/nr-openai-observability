@@ -1,16 +1,29 @@
+from argparse import ArgumentError
 import atexit
 import logging
 import os
+import sys
 import time
 from typing import Any, Dict, List, Optional
+import inspect
 
 import openai
-from newrelic_telemetry_sdk import (Event, EventBatch, EventClient, Harvester,
-                                    Span, SpanBatch, SpanClient)
+from newrelic_telemetry_sdk import (
+    Event,
+    EventBatch,
+    EventClient,
+    Harvester,
+    Span,
+    SpanBatch,
+    SpanClient,
+)
 
 from nr_openai_observability.build_events import (
-    build_completion_error_events, build_completion_events,
-    build_embedding_error_event, build_embedding_event)
+    build_completion_error_events,
+    build_completion_events,
+    build_embedding_error_event,
+    build_embedding_event,
+)
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 logger = logging.getLogger("nr_openai_observability")
@@ -19,6 +32,7 @@ EventName = "LlmCompletion"
 MessageEventName = "LlmChatCompletionMessage"
 SummeryEventName = "LlmChatCompletionSummary"
 EmbeddingEventName = "LlmEmbedding"
+VectorSearchEventName = "LlmVectorSearch"
 
 
 def _patched_call(original_fn, patched_fn):
@@ -287,6 +301,53 @@ def handle_create_chat_completion(
     return response
 
 
+def get_arg_value(
+    args,
+    kwargs,
+    pos,
+    kw,
+):
+    try:
+        return kwargs[kw]
+    except KeyError:
+        try:
+            return args[pos]
+        except IndexError:
+            raise ArgumentError("Missing required argument: %s" % (kw,))
+
+
+@handle_errors
+def handle_similarity_search(
+    original_fn, response, request_args, request_kwargs, error, response_time
+):
+    vendor = inspect.getmodule(original_fn).__name__.split(".")[-1]
+    query = get_arg_value(request_args, request_kwargs, 1, "query")
+    k = request_kwargs.get("k")
+    if k is None and len(request_args) >= 3:
+        k = request_args[1]
+
+    event_dict = {
+        "provider": vendor,
+        "query": query,
+        "k": k,
+        "response_time": response_time,
+    }
+
+    if error:
+        event_dict["error"] = str(error)
+    else:
+        documents = response
+        event_dict["document_count"] = len(documents)
+        for idx, document in enumerate(documents):
+            event_dict[f"document_{idx}_page_content"] = str(document.page_content)
+            for kwarg_key, v in document.metadata.items():
+                event_dict[f"document_{idx}_metadata_{kwarg_key}"] = str(v)
+
+    monitor.record_event(event_dict, VectorSearchEventName)
+
+    return response
+
+
 async def patcher_create_completion_async(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
@@ -396,6 +457,25 @@ async def patcher_create_embedding_async(original_fn, *args, **kwargs):
     return handle_create_embedding(result, kwargs, None, time_delta)
 
 
+def patcher_similarity_search(original_fn, *args, **kwargs):
+    logger.debug(
+        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
+    )
+
+    result, time_delta = None, None
+    try:
+        timestamp = time.time()
+        result = original_fn(*args, **kwargs)
+        time_delta = time.time() - timestamp
+    except Exception as ex:
+        handle_similarity_search(original_fn, result, args, kwargs, ex, time_delta)
+        raise ex
+
+    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+    return handle_similarity_search(original_fn, result, args, kwargs, None, time_delta)
+
+
 @handle_errors
 def handle_create_embedding(response, request, error, response_time):
     event = None
@@ -433,6 +513,20 @@ def initialization(
     )
     perform_patch()
     return monitor
+
+
+def perform_patch_langchain_vectorstores():
+    import langchain.vectorstores
+    from langchain.vectorstores import __all__ as langchain_vecrordb_list
+
+    for vector_store in langchain_vecrordb_list:
+        try:
+            cls = getattr(langchain.vectorstores, vector_store)
+            cls.similarity_search = _patched_call(
+                cls.similarity_search, patcher_similarity_search
+            )
+        except AttributeError:
+            pass
 
 
 def perform_patch():
@@ -484,3 +578,6 @@ def perform_patch():
         )
     except AttributeError:
         pass
+
+    if "langchain" in sys.modules:
+        perform_patch_langchain_vectorstores()

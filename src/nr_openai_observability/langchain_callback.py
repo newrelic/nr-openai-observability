@@ -68,7 +68,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
 
-
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
         tags = {
@@ -192,7 +191,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         if not trace_id and "newrelic" in sys.modules:
             import newrelic.agent
 
-            trace_id = getattr(newrelic.agent.current_transaction(), 'trace_id', None)
+            trace_id = getattr(newrelic.agent.current_transaction(), "trace_id", None)
 
         trace_id = trace_id or self.trace_id
 

@@ -3,10 +3,10 @@ from typing import Any, Dict, List
 import boto3
 from langchain.agents import AgentType, initialize_agent
 from langchain.chat_models import ChatOpenAI
+from langchain.llms.base import LLM
 from langchain.llms.bedrock import Bedrock
 from langchain.tools import Tool
-from langchain.llms.base import LLM
-from bedrock import get_bedrock_client
+
 from nr_openai_observability.langchain_callback import NewRelicCallbackHandler
 
 
@@ -21,6 +21,7 @@ new_relic_monitor = NewRelicCallbackHandler(
 
 def math(x):
     return 4
+
 
 tools = []
 tools.append(
@@ -48,7 +49,6 @@ def get_agent(llm: LLM, tools: List[Tool]):
         llm,
         agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     )
-
 
 
 openai_agent = get_agent(openai_llm, tools)
