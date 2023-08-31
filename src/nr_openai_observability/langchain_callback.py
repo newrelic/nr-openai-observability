@@ -189,7 +189,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             tags.update(self.langchain_callback_metadata)
 
         if not trace_id and "newrelic" in sys.modules:
-            import newrelic.agent
+            import newrelic.agent # type: ignore
 
             trace_id = getattr(newrelic.agent.current_transaction(), "trace_id", None)
 
