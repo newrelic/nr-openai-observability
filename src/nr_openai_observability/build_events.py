@@ -3,6 +3,10 @@ from datetime import datetime
 
 import openai
 
+HEADER_PREFIX_TO_BE_COLLECTED = "metadata."
+
+def filter_dict_by_prefix(dictionary, prefix):
+    return {k: v for k, v in dictionary.items() if k.startswith(prefix)}
 
 def _build_messages_events(messages, completion_id, model):
     events = []
@@ -62,6 +66,7 @@ def build_completion_events(response, request, response_headers, response_time):
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
+        **filter_dict_by_prefix(request.get("headers", {}), HEADER_PREFIX_TO_BE_COLLECTED),
     }
 
     completion.update(_get_rate_limit_data(response_headers))
@@ -94,6 +99,7 @@ def build_completion_error_events(request, error):
         "error_type": error.error.type,
         "error_code": error.error.code,
         "error_param": error.error.param,
+        **filter_dict_by_prefix(request.get("headers", {}), HEADER_PREFIX_TO_BE_COLLECTED),
     }
 
     messages = _build_messages_events(
@@ -123,6 +129,7 @@ def build_embedding_event(response, request, response_headers, response_time):
         "ingest_source": "PythonSDK",
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
+        **filter_dict_by_prefix(request.get("headers", {}), HEADER_PREFIX_TO_BE_COLLECTED),
     }
 
     embedding.update(_get_rate_limit_data(response_headers))
@@ -145,6 +152,7 @@ def build_embedding_error_event(request, error):
         "error_type": error.error.type,
         "error_code": error.error.code,
         "error_param": error.error.param,
+        **filter_dict_by_prefix(request.get("headers", {}), HEADER_PREFIX_TO_BE_COLLECTED),
     }
 
     return embedding
