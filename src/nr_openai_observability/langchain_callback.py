@@ -1,13 +1,14 @@
 import random
 import sys
 from collections import deque
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 from newrelic_telemetry_sdk import Span
 
 from nr_openai_observability import monitor
+from nr_openai_observability.build_events import span_to_event
 
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
@@ -39,7 +40,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> Any:
         """Run when LLM starts running."""
         tags = {
-            "prompt": prompts[0],
+            "messages": "\n".join(prompts),
             "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
         }
         self.spans_stack.append(self.create_span(name="LlmCompletion", tags=tags))
@@ -53,6 +54,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run when Chat Model starts running."""
         invocation_params = kwargs.get("invocation_params", {})
         tags = {
+            "messages": "\n".join([f"{x.type}: {x.content}" for x in messages[0]]),
             "model": invocation_params.get("model"),
             "model_name": invocation_params.get("model_name"),
             "temperature": invocation_params.get("temperature"),
@@ -70,9 +72,24 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
+
         tags = {
             "response": response.generations[0][0].text,
         }
+
+        llm_output = response.llm_output
+        if llm_output:
+            tags.update(
+                {
+                    "prompt_tokens": response.llm_output.get(
+                        "token_usage"
+                    ).prompt_tokens,
+                    "completion_tokens": response.llm_output.get(
+                        "token_usage"
+                    ).completion_tokens,
+                    "total_tokens": response.llm_output.get("token_usage").total_tokens,
+                }
+            )
         span = self.spans_stack.pop()
         assert span["attributes"]["name"] == "LlmCompletion"
         self.finish_and_record_span(span, tags)
@@ -90,8 +107,17 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
     ) -> Any:
         """Run when chain starts running."""
+
+        key = "chat_history" if inputs.get("chat_history") else "memory"
+        chat_history = (
+            "\n".join([f"{x.type}: {x.content}" for x in inputs.get(key, [])])
+            if inputs.get(key)
+            else ""
+        )
+
         tags = {
-            "input": inputs.get("input"),
+            "input": inputs.get("input") or inputs.get("human_input") or "",
+            "chat_history": chat_history,
             "run_id": str(kwargs.get("run_id")),
             "start_tags": str(kwargs.get("tags")),
             "start_metadata": str(kwargs.get("metadata")),
@@ -189,7 +215,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             tags.update(self.langchain_callback_metadata)
 
         if not trace_id and "newrelic" in sys.modules:
-            import newrelic.agent # type: ignore
+            import newrelic.agent  # type: ignore
 
             trace_id = getattr(newrelic.agent.current_transaction(), "trace_id", None)
 
@@ -210,3 +236,4 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         span["attributes"].update(tags or {})
         span.finish()
         self.new_relic_monitor.record_span(span)
+        self.new_relic_monitor.record_event(**span_to_event(span))
