@@ -1,29 +1,20 @@
-from argparse import ArgumentError
 import atexit
+import inspect
 import logging
 import os
 import sys
 import time
+import uuid
+from argparse import ArgumentError
 from typing import Any, Dict, List, Optional
-import inspect
 
 import openai
-from newrelic_telemetry_sdk import (
-    Event,
-    EventBatch,
-    EventClient,
-    Harvester,
-    Span,
-    SpanBatch,
-    SpanClient,
-)
+from newrelic_telemetry_sdk import (Event, EventBatch, EventClient, Harvester,
+                                    Span, SpanBatch, SpanClient)
 
 from nr_openai_observability.build_events import (
-    build_completion_error_events,
-    build_completion_events,
-    build_embedding_error_event,
-    build_embedding_event,
-)
+    build_completion_error_events, build_completion_events,
+    build_embedding_error_event, build_embedding_event)
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 logger = logging.getLogger("nr_openai_observability")
@@ -33,6 +24,7 @@ MessageEventName = "LlmChatCompletionMessage"
 SummeryEventName = "LlmChatCompletionSummary"
 EmbeddingEventName = "LlmEmbedding"
 VectorSearchEventName = "LlmVectorSearch"
+VectorSearchResultsEventName = "LlmVectorSearchResult"
 
 
 def _patched_call(original_fn, patched_fn):
@@ -337,11 +329,20 @@ def handle_similarity_search(
         event_dict["error"] = str(error)
     else:
         documents = response
+        event_dict["search_id"] = str(uuid.uuid4())
         event_dict["document_count"] = len(documents)
         for idx, document in enumerate(documents):
-            event_dict[f"document_{idx}_page_content"] = str(document.page_content)
+            result_event_dict = {
+                "search_id": event_dict["search_id"],
+                "result_rank": idx,
+                "document_page_content": str(document.page_content),
+            }
             for kwarg_key, v in document.metadata.items():
-                event_dict[f"document_{idx}_metadata_{kwarg_key}"] = str(v)
+                result_event_dict[f"document_metadata_{kwarg_key}"] = str(v)
+
+            result_event_dict.update(**event_dict)
+
+            monitor.record_event(result_event_dict, VectorSearchResultsEventName)
 
     monitor.record_event(event_dict, VectorSearchEventName)
 
