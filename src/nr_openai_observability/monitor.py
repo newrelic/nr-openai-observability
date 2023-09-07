@@ -518,9 +518,9 @@ def initialization(
 
 def perform_patch_langchain_vectorstores():
     import langchain.vectorstores
-    from langchain.vectorstores import __all__ as langchain_vecrordb_list
+    from langchain.vectorstores import __all__ as langchain_vectordb_list
 
-    for vector_store in langchain_vecrordb_list:
+    for vector_store in langchain_vectordb_list:
         try:
             cls = getattr(langchain.vectorstores, vector_store)
             cls.similarity_search = _patched_call(
