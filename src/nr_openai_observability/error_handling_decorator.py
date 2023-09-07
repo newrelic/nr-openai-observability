@@ -11,4 +11,5 @@ def handle_errors(func):
             return func(*args, **kwargs)
         except Exception as err:
             logger.error(f"An error occurred in {func.__name__}: {err}")
+
     return wrapper

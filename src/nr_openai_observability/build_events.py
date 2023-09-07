@@ -1,7 +1,10 @@
 import uuid
+from ast import Dict
 from datetime import datetime
+from typing import Any, Tuple
 
 import openai
+from newrelic_telemetry_sdk import Span
 
 
 def _build_messages_events(messages, completion_id, model):
@@ -46,7 +49,6 @@ def build_completion_events(response, request, response_headers, response_time):
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
-        "timestamp": datetime.now(),
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
@@ -81,7 +83,6 @@ def build_completion_error_events(request, error):
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
-        "timestamp": datetime.now(),
         "request.model": request.get("model") or request.get("engine"),
         "temperature": request.get("temperature"),
         "max_tokens": request.get("max_tokens"),
@@ -148,3 +149,20 @@ def build_embedding_error_event(request, error):
     }
 
     return embedding
+
+
+def span_to_event(span: Span):
+    event_dict = {
+        "guid": span["id"],
+        "trace.id": span.get("trace.id"),
+        "parent.id": span.get("parent.id"),
+        "timestamp": span.get("timestamp"),
+        "duration.ms": span.get("duration.ms"),
+    }
+    event_dict.update(**span["attributes"])
+    event_dict.pop("name")
+
+    return dict(
+        table=span["attributes"]["name"],
+        event_dict=event_dict,
+    )

@@ -9,13 +9,20 @@ homepage = "https://newrelic.com/instant-observability/openai"
 keywords = ["newrelic", "observability", "openai", "gpt", "chatGPT", "GPT-4", "monitor", "generative", "ai"]
 
 [tool.poetry.dependencies]
-python = "^3.7.1"
+python = ">=3.8.1,<4.0.0"
 newrelic-telemetry-sdk = "^0.4.0"
 openai = ">=0.8,<0.30"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.2.1"
 
+
+[tool.poetry.group.dev.dependencies]
+langchain = "^0.0.248"
+boto3 = {path = "dependencies/boto3-1.28.21-py3-none-any.whl"}
+botocore = {path = "dependencies/botocore-1.31.21-py3-none-any.whl"}
+chromadb = "^0.4.8"
+tiktoken = "^0.4.0"
 
 [build-system]
 requires = ["poetry-core>=1.1.0"]
