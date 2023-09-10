@@ -139,7 +139,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when chain errors."""
-        tags = {error: str(error)}
+        tags = {"error": str(error)}
         span = self.spans_stack.pop()
         assert span["attributes"]["name"] == "LlmChain"
         self.finish_and_record_span(span, tags)
@@ -173,9 +173,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when tool errors."""
-        tags = {
-            "error": error,
-        }
+        tags = {"error": str(error)}
         span = self.spans_stack.pop()
         assert span["attributes"]["name"] == "LlmTool"
         tool_name = kwargs.get("name")
