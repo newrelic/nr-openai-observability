@@ -91,10 +91,10 @@ def build_completion_error_events(request, error):
         "organization": error.organization,
         "number_of_messages": len(request.get("messages", [])),
         "error_status": error.http_status,
-        "error_message": error.error.message,
-        "error_type": error.error.type,
-        "error_code": error.error.code,
-        "error_param": error.error.param,
+        "error_message": error.error.message if error.error else error.user_message,
+        "error_type": error.error.type if error.error else None,
+        "error_code": error.error.code if error.error else None,
+        "error_param": error.error.param if error.error else None,
     }
 
     messages = _build_messages_events(
