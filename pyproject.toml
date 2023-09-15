@@ -10,7 +10,7 @@ keywords = ["newrelic", "observability", "openai", "gpt", "chatGPT", "GPT-4", "m
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
-newrelic-telemetry-sdk = "^0.4.0"
+newrelic = "^9.0.0"
 openai = ">=0.8,<0.30"
 
 [tool.poetry.dev-dependencies]

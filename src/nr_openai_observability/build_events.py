@@ -4,22 +4,27 @@ from datetime import datetime
 from typing import Any, Tuple
 
 import openai
-from newrelic_telemetry_sdk import Span
+import newrelic.agent
 
 
-def _build_messages_events(messages, completion_id, model):
+def build_messages_events(messages, model, tags={}):
+    completion_id = newrelic.agent.current_span_id()
+    trace_id = newrelic.agent.current_trace_id()
+
     events = []
     for index, message in enumerate(messages):
         currMessage = {
             "id": str(uuid.uuid4()),
-            "content": message.get("content", "")[:4095],
+            "content": (message.get("content") or "")[:4095],
             "role": message.get("role"),
             "completion_id": completion_id,
+            "trace.id": trace_id,
             "sequence": index,
             "model": model,
             "vendor": "openAI",
             "ingest_source": "PythonSDK",
         }
+        currMessage.update(tags)
 
         events.append(currMessage)
 
@@ -43,8 +48,16 @@ def _get_rate_limit_data(response_headers):
     }
 
 
-def build_completion_events(response, request, response_headers, response_time):
-    completion_id = str(uuid.uuid4())
+def build_completion_events(
+    response, request, response_headers, response_time, final_message
+):
+    completion_id = newrelic.agent.current_span_id()
+    trace_id = newrelic.agent.current_trace_id()
+    transaction_id = (
+        newrelic.agent.current_transaction().guid
+        if newrelic.agent.current_transaction() != None
+        else None
+    )
 
     completion = {
         "id": completion_id,
@@ -64,17 +77,14 @@ def build_completion_events(response, request, response_headers, response_time):
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
+        "trace.id": trace_id,
+        "transactionId": transaction_id,
+        "response": final_message["content"],
     }
 
     completion.update(_get_rate_limit_data(response_headers))
 
-    messages = _build_messages_events(
-        request.get("messages", []) + [response.choices[0].message],
-        completion_id,
-        response.model,
-    )
-
-    return {"messages": messages, "completion": completion}
+    return completion
 
 
 def build_completion_error_events(request, error):
@@ -97,13 +107,7 @@ def build_completion_error_events(request, error):
         "error_param": error.error.param,
     }
 
-    messages = _build_messages_events(
-        request.get("messages", []),
-        completion_id,
-        request.get("model") or request.get("engine"),
-    )
-
-    return {"messages": messages, "completion": completion}
+    return completion
 
 
 def build_embedding_event(response, request, response_headers, response_time):

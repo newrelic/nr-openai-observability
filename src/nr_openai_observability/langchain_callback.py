@@ -1,14 +1,11 @@
-import random
-import sys
-from collections import deque
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
-from newrelic_telemetry_sdk import Span
 
 from nr_openai_observability import monitor
-from nr_openai_observability.build_events import span_to_event
+import newrelic.agent
 
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
@@ -23,28 +20,17 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
         self.new_relic_monitor = monitor.initialization(
             application_name=application_name,
-            parent_span_id_callback=self.parent_id_callback,  # may not be asyncio safe
             **kwargs,
         )
         self.langchain_callback_metadata = langchain_callback_metadata
-        self.spans_stack = deque()
         self.tool_invocation_counter = 0
-        self.trace_id = "%016x" % random.getrandbits(64)
+        self.trace_stacks = {}
 
     def get_and_update_tool_invocation_counter(self):
         self.tool_invocation_counter += 1
         return self.tool_invocation_counter
 
-    def on_llm_start(
-        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
-    ) -> Any:
-        """Run when LLM starts running."""
-        tags = {
-            "messages": "\n".join(prompts),
-            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
-        }
-        self.spans_stack.append(self.create_span(name="LlmCompletion", tags=tags))
-
+    # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
     def on_chat_model_start(
         self,
         serialized: Dict[str, Any],
@@ -64,15 +50,19 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "n": invocation_params.get("n"),
             "temperature": invocation_params.get("temperature"),
         }
+        trace = newrelic.agent.FunctionTrace(
+            name="AI/LangChain/RunChatModel", terminal=False
+        )
+        self._start_segment(kwargs["run_id"], trace)
 
-        self.spans_stack.append(self.create_span(name="LlmCompletion", tags=tags))
+    def on_chat_model_end(self, **kwargs: Any) -> Any:
+        self._finish_segment(kwargs["run_id"])
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
-
         tags = {
             "response": response.generations[0][0].text,
         }
@@ -90,18 +80,23 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                     "total_tokens": response.llm_output.get("token_usage").total_tokens,
                 }
             )
-        span = self.spans_stack.pop()
-        assert span["attributes"]["name"] == "LlmCompletion"
-        self.finish_and_record_span(span, tags)
+        self._finish_segment(kwargs["run_id"])
+
+    def on_llm_start(
+        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
+    ) -> Any:
+        """Run when LLM starts running."""
+        tags = {
+            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
+        }
+        trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
+        self._start_segment(kwargs["run_id"], trace, tags)
 
     def on_llm_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when LLM errors."""
         tags = {"error": str(error)}
-        span = self.spans_stack.pop()
-        assert span["attributes"]["name"] == "LlmCompletion"
-        self.finish_and_record_span(span, tags)
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
@@ -115,6 +110,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             else ""
         )
 
+        trace = newrelic.agent.FunctionTrace(
+            name="AI/LangChain/RunChain", terminal=False
+        )
         tags = {
             "input": inputs.get("input") or inputs.get("human_input") or "",
             "chat_history": chat_history,
@@ -122,7 +120,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "start_tags": str(kwargs.get("tags")),
             "start_metadata": str(kwargs.get("metadata")),
         }
-        self.spans_stack.append(self.create_span(name="LlmChain", tags=tags))
+        self._start_segment(kwargs["run_id"], trace, tags)
 
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
@@ -131,29 +129,29 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "run_id": str(kwargs.get("run_id")),
             "end_tags": str(kwargs.get("tags")),
         }
-        span = self.spans_stack.pop()
-        assert span["attributes"]["name"] == "LlmChain"
-        self.finish_and_record_span(span, tags)
+        self._finish_segment(kwargs["run_id"], tags)
 
     def on_chain_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when chain errors."""
-        tags = {"error": str(error)}
-        span = self.spans_stack.pop()
-        assert span["attributes"]["name"] == "LlmChain"
-        self.finish_and_record_span(span, tags)
+        tags = {error: str(error)}
+        self._finish_segment(kwargs["run_id", tags])
 
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> Any:
         """Run when tool starts running."""
+        tool_name = serialized.get("name")
+        trace = newrelic.agent.FunctionTrace(
+            name=f"AI/LangChain/Tool/{tool_name}", terminal=False
+        )
         tags = {
-            "tool_name": serialized.get("name"),
+            "tool_name": tool_name,
             "tool_description": serialized.get("description"),
             "tool_input": input_str,
         }
-        self.spans_stack.append(self.create_span(name="LlmTool", tags=tags))
+        self._start_segment(kwargs["run_id"], trace, tags)
 
     def on_tool_end(self, output: str, **kwargs: Any) -> Any:
         """Run when tool ends running."""
@@ -161,77 +159,46 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "tool_output": output,
             "tool_invocation_counter": self.get_and_update_tool_invocation_counter(),
         }
-        span = self.spans_stack.pop()
-
-        assert span["attributes"]["name"] == "LlmTool"
-        tool_name = kwargs.get("name")
-        assert span["attributes"]["tool_name"] == tool_name
-
-        self.finish_and_record_span(span, tags)
+        self._finish_segment(kwargs["run_id"], tags)
 
     def on_tool_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when tool errors."""
-        tags = {"error": str(error)}
-        span = self.spans_stack.pop()
-        assert span["attributes"]["name"] == "LlmTool"
-        tool_name = kwargs.get("name")
-        assert span["attributes"]["tool_name"] == tool_name
-
-        self.finish_and_record_span(span, tags)
+        tags = {
+            "error": error,
+        }
+        self._finish_segment(kwargs["run_id", tags])
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
 
     def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
         """Run on agent action."""
+        # trace = newrelic.agent.FunctionTrace(
+        #     name=f"AI/LangChain/Tool/{action.tool}", terminal=False
+        # )
+        # self._start_segment(kwargs["run_id"], trace)
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
+        # self._finish_segment(kwargs["run_id"])
 
-    def parent_id_callback(self) -> str:
-        parent_span = self.spans_stack[-1] if self.spans_stack else None
-        return parent_span["id"] if parent_span else None
+    def _start_segment(self, run_id, trace, tags={}):
+        trace.__enter__()
+        stack = self.trace_stacks.get(run_id, [])
+        stack.append(trace)
+        self.trace_stacks[run_id] = stack
+        for key, val in tags.items():
+            trace.add_custom_attribute(key, val)
 
-    def create_span(
-        self,
-        name: Optional[str] = None,
-        tags: Optional[Dict[str, Any]] = None,
-        guid: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        parent_id: Optional[str] = None,
-        start_time_ms: Optional[int] = None,
-        duration_ms: Optional[int] = None,
-    ):
-        if parent_id is None:
-            parent_span = self.spans_stack[-1] if self.spans_stack else None
-            parent_id = parent_span["id"] if parent_span else None
-
-        if self.langchain_callback_metadata:
-            tags = tags or {}
-            tags.update(self.langchain_callback_metadata)
-
-        if not trace_id and "newrelic" in sys.modules:
-            import newrelic.agent  # type: ignore
-
-            trace_id = getattr(newrelic.agent.current_transaction(), "trace_id", None)
-
-        trace_id = trace_id or self.trace_id
-
-        span = Span(
-            name,
-            tags,
-            guid,
-            trace_id,
-            parent_id,
-            start_time_ms,
-            duration_ms,
-        )
-        return span
-
-    def finish_and_record_span(self, span: Span, tags: Optional[Dict[str, Any]] = None):
-        span["attributes"].update(tags or {})
-        span.finish()
-        self.new_relic_monitor.record_span(span)
-        self.new_relic_monitor.record_event(**span_to_event(span))
+    def _finish_segment(self, run_id, tags={}):
+        stack = self.trace_stacks.get(run_id, [])
+        trace = stack.pop()
+        if len(stack) == 0:
+            self.trace_stacks.pop(run_id, None)
+        if trace != None:
+            for key, val in tags.items():
+                trace.add_custom_attribute(key, val)
+            trace.__exit__(None, None, None)
+        return trace
