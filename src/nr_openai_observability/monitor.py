@@ -82,21 +82,6 @@ class OpenAIMonitoring:
         self.headers_by_id: dict = {}
         self.initialized = False
 
-    def _set_license_key(
-        self,
-        license_key: Optional[str] = None,
-    ):
-        self.license_key = (
-            license_key
-            or os.getenv("NEW_RELIC_LICENSE_KEY")
-            or os.getenv("NEW_RELIC_INSERT_KEY")
-        )  # type: ignore
-
-        if (
-            not isinstance(self.license_key, str) and self.license_key is not None
-        ) or self.license_key is None:
-            raise TypeError("license_key instance type must be str and not None")
-
     def _set_metadata(
         self,
         metadata: Dict[str, Any] = {},
@@ -115,13 +100,11 @@ class OpenAIMonitoring:
     def start(
         self,
         application_name: str,
-        license_key: Optional[str] = None,
         metadata: Dict[str, Any] = {},
         metadata_callback: Optional[callable] = None,
     ):
         if not self.initialized:
             self.application_name = application_name
-            self._set_license_key(license_key)
             self._set_metadata(metadata)
             self.metadata_callback = metadata_callback
             self._start()
@@ -194,7 +177,7 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
             time_delta = time.time() - timestamp
             logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-            return handle_finish_chat_completion(result, kwargs, None, time_delta)
+            return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
         build_completion_summary_for_error(ex)
         raise ex
@@ -459,13 +442,11 @@ monitor = OpenAIMonitoring()
 
 def initialization(
     application_name: str,
-    license_key: Optional[str] = None,
     metadata: Dict[str, Any] = {},
     metadata_callback: Optional[callable] = None,
 ):
     monitor.start(
         application_name,
-        license_key,
         metadata,
         metadata_callback,
     )
