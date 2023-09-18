@@ -1,5 +1,4 @@
 from typing import Any, Dict, List, Union
-from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
@@ -82,6 +81,13 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             )
         self._finish_segment(kwargs["run_id"])
 
+    def on_llm_error(
+        self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
+    ) -> Any:
+        """Run when LLM errors."""
+        tags = {"error": str(error)}
+        self._finish_segment(kwargs["run_id"], tags)
+
     def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
@@ -91,12 +97,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         }
         trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
         self._start_segment(kwargs["run_id"], trace, tags)
-
-    def on_llm_error(
-        self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
-    ) -> Any:
-        """Run when LLM errors."""
-        tags = {"error": str(error)}
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any

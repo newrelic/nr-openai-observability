@@ -6,7 +6,6 @@ import time
 import uuid
 from argparse import ArgumentError
 from typing import Any, Dict, Optional
-from typing import Any, Dict, Optional
 
 import openai
 
