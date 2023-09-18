@@ -7,7 +7,7 @@ import openai
 import newrelic.agent
 
 
-def build_messages_events(messages, model, tags={}):
+def build_messages_events(messages, model, tags={}, start_seq_num=0):
     completion_id = newrelic.agent.current_span_id()
     trace_id = newrelic.agent.current_trace_id()
 
@@ -19,7 +19,7 @@ def build_messages_events(messages, model, tags={}):
             "role": message.get("role"),
             "completion_id": completion_id,
             "trace.id": trace_id,
-            "sequence": index,
+            "sequence": index + start_seq_num,
             "model": model,
             "vendor": "openAI",
             "ingest_source": "PythonSDK",

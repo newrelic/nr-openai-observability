@@ -212,6 +212,7 @@ def handle_start_completion(request):
 
 @handle_errors
 def handle_finish_chat_completion(response, request, response_time):
+    initial_messages = request.get("messages", [])
     final_message = response.choices[0].message
 
     completion = build_completion_summary(
@@ -224,7 +225,10 @@ def handle_finish_chat_completion(response, request, response_time):
     delattr(response, "_nr_response_headers")
 
     response_message = build_messages_events(
-        [final_message], response.model, {"is_final_response": True}
+        [final_message],
+        response.model,
+        {"is_final_response": True},
+        len(initial_messages),
     )[0]
 
     monitor.record_event(response_message, MessageEventName)
