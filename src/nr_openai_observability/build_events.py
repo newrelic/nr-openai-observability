@@ -153,20 +153,3 @@ def build_embedding_error_event(request, error):
     }
 
     return embedding
-
-
-def span_to_event(span: Span):
-    event_dict = {
-        "guid": span["id"],
-        "trace.id": span.get("trace.id"),
-        "parent.id": span.get("parent.id"),
-        "timestamp": span.get("timestamp"),
-        "duration.ms": span.get("duration.ms"),
-    }
-    event_dict.update(**span["attributes"])
-    event_dict.pop("name")
-
-    return dict(
-        table=span["attributes"]["name"],
-        event_dict=event_dict,
-    )
