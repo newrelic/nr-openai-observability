@@ -48,7 +48,7 @@ def _get_rate_limit_data(response_headers):
     }
 
 
-def build_completion_events(
+def build_completion_summary(
     response, request, response_headers, response_time, final_message
 ):
     completion_id = newrelic.agent.current_span_id()
@@ -79,7 +79,7 @@ def build_completion_events(
         "api_version": response_headers.get("openai-version"),
         "trace.id": trace_id,
         "transactionId": transaction_id,
-        "response": final_message["content"],
+        "response": (final_message.get("content") or "")[:4095],
     }
 
     completion.update(_get_rate_limit_data(response_headers))
@@ -87,7 +87,7 @@ def build_completion_events(
     return completion
 
 
-def build_completion_error_events(request, error):
+def build_completion_summary_for_error(request, error):
     completion_id = str(uuid.uuid4())
 
     completion = {

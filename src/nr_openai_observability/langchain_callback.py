@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -29,6 +30,17 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self.tool_invocation_counter += 1
         return self.tool_invocation_counter
 
+    def on_llm_start(
+        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
+    ) -> Any:
+        """Run when LLM starts running."""
+        tags = {
+            "messages": "\n".join(prompts),
+            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
+        }
+        trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
+        self._start_segment(kwargs["run_id"], trace, tags)
+
     # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
     def on_chat_model_start(
         self,
@@ -54,14 +66,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         )
         self._start_segment(kwargs["run_id"], trace)
 
-    def on_chat_model_end(self, **kwargs: Any) -> Any:
-        self._finish_segment(kwargs["run_id"])
-
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
+
         tags = {
             "response": response.generations[0][0].text,
         }
@@ -87,16 +97,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run when LLM errors."""
         tags = {"error": str(error)}
         self._finish_segment(kwargs["run_id"], tags)
-
-    def on_llm_start(
-        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
-    ) -> Any:
-        """Run when LLM starts running."""
-        tags = {
-            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
-        }
-        trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
-        self._start_segment(kwargs["run_id"], trace, tags)
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
@@ -175,10 +175,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
         """Run on agent action."""
-        # trace = newrelic.agent.FunctionTrace(
-        #     name=f"AI/LangChain/Tool/{action.tool}", terminal=False
-        # )
-        # self._start_segment(kwargs["run_id"], trace)
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
@@ -186,19 +182,29 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def _start_segment(self, run_id, trace, tags={}):
         trace.__enter__()
-        stack = self.trace_stacks.get(run_id, [])
-        stack.append(trace)
-        self.trace_stacks[run_id] = stack
+        if self.langchain_callback_metadata:
+            tags = tags or {}
+            tags.update(self.langchain_callback_metadata)
+
         for key, val in tags.items():
             trace.add_custom_attribute(key, val)
 
+        stack = self.trace_stacks.get(run_id, [])
+        stack.append(trace)
+
+        self.trace_stacks[run_id] = stack
+
     def _finish_segment(self, run_id, tags={}):
         stack = self.trace_stacks.get(run_id, [])
-        trace = stack.pop()
-        if len(stack) == 0:
-            self.trace_stacks.pop(run_id, None)
-        if trace != None:
+        if stack != None and len(stack) != 0:
+            trace = stack.pop()
+
+            if len(stack) == 0:
+                self.trace_stacks.pop(run_id, None)
+
             for key, val in tags.items():
                 trace.add_custom_attribute(key, val)
+
             trace.__exit__(None, None, None)
-        return trace
+
+            return trace

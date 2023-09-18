@@ -12,8 +12,8 @@ import openai
 import newrelic.agent
 
 from nr_openai_observability.build_events import (
-    build_completion_error_events,
-    build_completion_events,
+    build_completion_summary_for_error,
+    build_completion_summary,
     build_embedding_error_event,
     build_embedding_event,
     build_messages_events,
@@ -174,7 +174,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        build_completion_error_events(ex)
+        build_completion_summary_for_error(ex)
         raise ex
 
 
@@ -196,7 +196,7 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, None, time_delta)
     except Exception as ex:
-        build_completion_error_events(ex)
+        build_completion_summary_for_error(ex)
         raise ex
 
 
@@ -231,7 +231,7 @@ def handle_start_completion(request):
 def handle_finish_chat_completion(response, request, response_time):
     final_message = response.choices[0].message
 
-    completion = build_completion_events(
+    completion = build_completion_summary(
         response,
         request,
         getattr(response, "_nr_response_headers"),
