@@ -43,6 +43,43 @@ def _get_rate_limit_data(response_headers):
     }
 
 
+def build_stream_completion_events(
+    last_chunk, request, response_headers, message, response_time
+):
+    print(last_chunk)
+    completion_id = str(uuid.uuid4())
+
+    completion = {
+        "id": completion_id,
+        "api_key_last_four_digits": f"sk-{last_chunk.api_key[-4:]}",
+        "response_time": int(response_time * 1000),
+        "request.model": request.get("model") or request.get("engine"),
+        "response.model": last_chunk.model,
+        "usage.completion_tokens": 999,
+        "usage.total_tokens": 999,
+        "usage.prompt_tokens": 999,
+        "temperature": request.get("temperature"),
+        "max_tokens": request.get("max_tokens"),
+        "finish_reason": last_chunk.choices[0].finish_reason,
+        "api_type": last_chunk.api_type,
+        "vendor": "openAI",
+        "ingest_source": "PythonSDK",
+        "number_of_messages": len(request.get("messages", [])) + 1,
+        "organization": last_chunk.organization,
+        "api_version": response_headers.get("openai-version"),
+    }
+
+    completion.update(_get_rate_limit_data(response_headers))
+
+    messages = _build_messages_events(
+        request.get("messages", []) + [message],
+        completion_id,
+        last_chunk.model,
+    )
+
+    return {"messages": messages, "completion": completion}
+
+
 def build_completion_events(response, request, response_headers, response_time):
     completion_id = str(uuid.uuid4())
 
