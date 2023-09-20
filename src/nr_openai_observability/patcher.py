@@ -16,8 +16,8 @@ from nr_openai_observability.build_events import (
     build_embedding_event,
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
-from nr_openai_observability.stream_patcher import patcher_create_chat_completion_stream
 from nr_openai_observability.openai_monitoring import monitor
+from nr_openai_observability.stream_patcher import patcher_create_chat_completion_stream
 
 logger = logging.getLogger("nr_openai_observability")
 

@@ -18,11 +18,43 @@ async def wrap_async_stream_generator(stream_gen):
 
 
 def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
-    def wrap_stream_generator(stream_gen, chuck_callback=None):
+    def wrap_stream_generator(stream_gen):
         role, time_delta, content = None, None, ""
         try:
             timestamp = time.time()
             for chunk in stream_gen:
+                content += chunk.choices[0].delta.get("content", "")
+                if hasattr(chunk.choices[0].delta, "role"):
+                    role = chunk.choices[0].delta.role
+                yield chunk
+            time_delta = time.time() - timestamp
+        except Exception as ex:
+            handle_stream_completed(
+                result, kwargs, ex, time_delta, {"role": role, "content": content}
+            )
+            raise ex
+
+        handle_stream_completed(
+            chunk, kwargs, None, time_delta, {"role": role, "content": content}
+        )
+
+    try:
+        result = original_fn(*args, **kwargs)
+
+    except Exception as ex:
+        raise ex
+
+    wrapped_result = wrap_stream_generator(result)
+
+    return wrapped_result
+
+
+async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwargs):
+    async def wrap_stream_generator(stream_gen):
+        role, time_delta, content = None, None, ""
+        try:
+            timestamp = time.time()
+            async for chunk in stream_gen:
                 content += chunk.choices[0].delta.get("content", "")
                 if hasattr(chunk.choices[0].delta, "role"):
                     role = chunk.choices[0].delta.role
