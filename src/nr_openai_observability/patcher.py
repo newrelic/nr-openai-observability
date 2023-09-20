@@ -16,7 +16,7 @@ from nr_openai_observability.build_events import (
     build_embedding_event,
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
-#from nr_openai_observability.monitor_stream import patcher_create_chat_completion_stream
+from nr_openai_observability.monitor_stream import patcher_create_chat_completion_stream
 from nr_openai_observability.openai_monitoring import monitor
 
 logger = logging.getLogger("nr_openai_observability")
@@ -382,8 +382,8 @@ def perform_patch():
     try:
         openai.ChatCompletion.create = _patched_call(
             openai.ChatCompletion.create,
-            patcher_create_chat_completion
-            #patcher_create_chat_completion_stream,
+            patcher_create_chat_completion,
+            patcher_create_chat_completion_stream,
         )
     except AttributeError:
         pass
