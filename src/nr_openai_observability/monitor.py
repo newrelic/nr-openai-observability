@@ -157,7 +157,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        build_completion_summary_for_error(ex)
+        build_completion_summary_for_error(kwargs, ex)
         raise ex
 
 
@@ -179,7 +179,7 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        build_completion_summary_for_error(ex)
+        build_completion_summary_for_error(kwargs, ex)
         raise ex
 
 

@@ -78,15 +78,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
         llm_output = response.llm_output
         if llm_output:
+            token_usage = response.llm_output.get("token_usage", {})
             tags.update(
                 {
-                    "prompt_tokens": response.llm_output.get(
-                        "token_usage"
-                    ).prompt_tokens,
-                    "completion_tokens": response.llm_output.get(
-                        "token_usage"
-                    ).completion_tokens,
-                    "total_tokens": response.llm_output.get("token_usage").total_tokens,
+                    "prompt_tokens": token_usage.get("prompt_tokens", None),
+                    "completion_tokens": token_usage.get("completion_tokens", None),
+                    "total_tokens": token_usage.get("total_tokens", None),
                 }
             )
         self._finish_segment(kwargs["run_id"])
