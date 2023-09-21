@@ -132,7 +132,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when chain errors."""
-        tags = {error: str(error)}
+        tags = {"error": str(error)}
         self._finish_segment(kwargs["run_id", tags])
 
     def on_tool_start(
@@ -163,8 +163,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> Any:
         """Run when tool errors."""
         tags = {
-            "error": error,
+            "error": str(error),
         }
+        newrelic.agent.notice_error()
         self._finish_segment(kwargs["run_id", tags])
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
