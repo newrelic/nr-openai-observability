@@ -133,7 +133,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> Any:
         """Run when chain errors."""
         tags = {"error": str(error)}
-        self._finish_segment(kwargs["run_id", tags])
+        self._finish_segment(kwargs["run_id"], tags)
 
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
@@ -166,7 +166,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "error": str(error),
         }
         newrelic.agent.notice_error()
-        self._finish_segment(kwargs["run_id", tags])
+        self._finish_segment(kwargs["run_id"], tags)
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
