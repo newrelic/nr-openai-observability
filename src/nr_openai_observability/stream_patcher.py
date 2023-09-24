@@ -1,7 +1,5 @@
 import time
 
-from tiktoken import encoding_for_model
-
 import nr_openai_observability.consts as consts
 from nr_openai_observability.build_events import (
     build_completion_error_events,
@@ -20,6 +18,7 @@ async def wrap_async_stream_generator(stream_gen):
 def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
     def wrap_stream_generator(stream_gen):
         role, time_delta, content = None, None, ""
+        span = monitor.create_span()
         try:
             timestamp = time.time()
             for chunk in stream_gen:
@@ -30,9 +29,15 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
             time_delta = time.time() - timestamp
         except Exception as ex:
             handle_stream_completed(
-                result, kwargs, ex, time_delta, {"role": role, "content": content}
+                None,
+                kwargs,
+                ex,
+                time_delta,
+                {"role": role, "content": content},
             )
             raise ex
+        finally:
+            span.finish()
 
         handle_stream_completed(
             chunk, kwargs, None, time_delta, {"role": role, "content": content}
@@ -52,9 +57,10 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
 async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwargs):
     async def wrap_stream_generator(stream_gen):
         role, time_delta, content = None, None, ""
+        span = monitor.create_span()
         try:
             timestamp = time.time()
-            async for chunk in stream_gen:
+            async for chunk in await stream_gen:
                 content += chunk.choices[0].delta.get("content", "")
                 if hasattr(chunk.choices[0].delta, "role"):
                     role = chunk.choices[0].delta.role
@@ -62,9 +68,15 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
             time_delta = time.time() - timestamp
         except Exception as ex:
             handle_stream_completed(
-                result, kwargs, ex, time_delta, {"role": role, "content": content}
+                None,
+                kwargs,
+                ex,
+                time_delta,
+                {"role": role, "content": content},
             )
             raise ex
+        finally:
+            span.finish()
 
         handle_stream_completed(
             chunk, kwargs, None, time_delta, {"role": role, "content": content}
@@ -83,9 +95,9 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
 
 @handle_errors
 def handle_stream_completed(last_chunk, request, error, response_time, message):
-    encoding = encoding_for_model(last_chunk.get("model") or last_chunk.get("engine"))
-    num_of_tokens = len(encoding.encode(message.get("content", "")))
-    print(num_of_tokens)
+    # encoding = encoding_for_model(last_chunk.get("model") or last_chunk.get("engine"))
+    # num_of_tokens = len(encoding.encode(message.get("content", "")))
+    # print(num_of_tokens)
     events = None
     if error:
         events = build_completion_error_events(request, error)

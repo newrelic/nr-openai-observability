@@ -17,7 +17,10 @@ from nr_openai_observability.build_events import (
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.openai_monitoring import monitor
-from nr_openai_observability.stream_patcher import patcher_create_chat_completion_stream
+from nr_openai_observability.stream_patcher import (
+    patcher_create_chat_completion_stream,
+    patcher_create_chat_completion_stream_async,
+)
 
 logger = logging.getLogger("nr_openai_observability")
 
@@ -40,18 +43,16 @@ def _patched_call(original_fn, patched_fn, stream_patched_fn=None):
     return _inner_patch
 
 
-def _patched_call_async(original_fn, patched_fn):
+def _patched_call_async(original_fn, patched_fn, stream_patched_fn=None):
     if hasattr(original_fn, "is_patched_by_monitor"):
         return original_fn
 
     async def _inner_patch(*args, **kwargs):
-        if kwargs.get("stream") is True:
-            logger.warning(
-                "stream = True is not supported by nr_openai_observability. Ignoring monitoring for this function call"
-            )
-            return await original_fn(*args, **kwargs)
         try:
-            return await patched_fn(original_fn, *args, **kwargs)
+            if kwargs.get("stream") is True and stream_patched_fn is not None:
+                return await stream_patched_fn(original_fn, *args, **kwargs)
+            else:
+                return await patched_fn(original_fn, *args, **kwargs)
         except Exception as ex:
             raise ex
 
@@ -390,7 +391,9 @@ def perform_patch():
 
     try:
         openai.ChatCompletion.acreate = _patched_call_async(
-            openai.ChatCompletion.acreate, patcher_create_chat_completion_async
+            openai.ChatCompletion.acreate,
+            patcher_create_chat_completion_async,
+            patcher_create_chat_completion_stream_async,
         )
     except AttributeError:
         pass
