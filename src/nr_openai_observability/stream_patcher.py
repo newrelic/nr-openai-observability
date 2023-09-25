@@ -9,12 +9,6 @@ from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.openai_monitoring import monitor
 
 
-async def wrap_async_stream_generator(stream_gen):
-    async for chunk in stream_gen:
-        print("chunk----------------------------")
-        yield chunk
-
-
 def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
     def wrap_stream_generator(stream_gen):
         role, time_delta, content = None, None, ""
