@@ -1,6 +1,6 @@
 EventName = "LlmCompletion"
 MessageEventName = "LlmChatCompletionMessage"
-SummeryEventName = "LlmChatCompletionSummary"
+SummaryEventName = "LlmChatCompletionSummary"
 EmbeddingEventName = "LlmEmbedding"
 VectorSearchEventName = "LlmVectorSearch"
 VectorSearchResultsEventName = "LlmVectorSearchResult"

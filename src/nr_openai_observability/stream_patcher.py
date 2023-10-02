@@ -89,9 +89,6 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
 
 @handle_errors
 def handle_stream_completed(last_chunk, request, error, response_time, message):
-    # encoding = encoding_for_model(last_chunk.get("model") or last_chunk.get("engine"))
-    # num_of_tokens = len(encoding.encode(message.get("content", "")))
-    # print(num_of_tokens)
     events = None
     if error:
         events = build_completion_error_events(request, error)
@@ -108,4 +105,4 @@ def handle_stream_completed(last_chunk, request, error, response_time, message):
     for event in events["messages"]:
         monitor.record_event(event, consts.MessageEventName)
 
-    monitor.record_event(events["completion"], consts.SummeryEventName)
+    monitor.record_event(events["completion"], consts.SummaryEventName)

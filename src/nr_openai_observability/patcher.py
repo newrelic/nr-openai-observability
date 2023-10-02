@@ -128,10 +128,10 @@ def handle_create_chat_completion(
 
     for event in events["messages"]:
         monitor.record_event(event, consts.MessageEventName)
-    monitor.record_event(events["completion"], consts.SummeryEventName)
+    monitor.record_event(events["completion"], consts.SummaryEventName)
     if span:
         span["attributes"].update(events["completion"])
-        span["attributes"]["name"] = consts.SummeryEventName
+        span["attributes"]["name"] = consts.SummaryEventName
         monitor.record_span(span)
 
     return response

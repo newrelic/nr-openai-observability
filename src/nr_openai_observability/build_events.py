@@ -94,7 +94,6 @@ def calc_prompt_tokens(model, messages):
 def build_stream_completion_events(
     last_chunk, request, response_headers, message, response_time
 ):
-    print(last_chunk)
     completion_id = str(uuid.uuid4())
     request_messages = request.get("messages", [])
 
