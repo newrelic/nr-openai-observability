@@ -125,6 +125,7 @@ def build_stream_completion_events(
         "number_of_messages": len(request.get("messages", [])) + 1,
         "organization": last_chunk.organization,
         "api_version": response_headers.get("openai-version"),
+        "stream": True,
     }
 
     completion.update(_get_rate_limit_data(response_headers))
@@ -159,6 +160,7 @@ def build_completion_events(response, request, response_headers, response_time):
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
+        "stream": False,
     }
 
     completion.update(_get_rate_limit_data(response_headers))
@@ -172,7 +174,7 @@ def build_completion_events(response, request, response_headers, response_time):
     return {"messages": messages, "completion": completion}
 
 
-def build_completion_error_events(request, error):
+def build_completion_error_events(request, error, isStream=False):
     completion_id = str(uuid.uuid4())
 
     completion = {
@@ -190,6 +192,7 @@ def build_completion_error_events(request, error):
         "error_type": error.error.type,
         "error_code": error.error.code,
         "error_param": error.error.param,
+        "stream": isStream,
     }
 
     messages = _build_messages_events(

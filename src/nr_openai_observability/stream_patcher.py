@@ -91,7 +91,7 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
 def handle_stream_completed(last_chunk, request, error, response_time, message):
     events = None
     if error:
-        events = build_completion_error_events(request, error)
+        events = build_completion_error_events(request, error, True)
     else:
         events = build_stream_completion_events(
             last_chunk,
