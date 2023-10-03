@@ -1,7 +1,7 @@
 import random
 import sys
 from collections import deque
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
@@ -108,15 +108,23 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> Any:
         """Run when chain starts running."""
 
-        key = "chat_history" if inputs.get("chat_history") else "memory"
-        chat_history = (
-            "\n".join([f"{x.type}: {x.content}" for x in inputs.get(key, [])])
-            if inputs.get(key)
-            else ""
-        )
+        chat_history = ""
+        input_string = ""
+        if isinstance(inputs, dict):
+            key = "chat_history" if inputs.get("chat_history") else "memory"
+            chat_history = (
+                "\n".join([f"{x.type}: {x.content}" for x in inputs.get(key, [])])
+                if inputs.get(key)
+                else ""
+            )
+
+            input_string
+
+        if isinstance(inputs, str):
+            input_string = inputs
 
         tags = {
-            "input": inputs.get("input") or inputs.get("human_input") or "",
+            "input": input_string,
             "chat_history": chat_history,
             "run_id": str(kwargs.get("run_id")),
             "start_tags": str(kwargs.get("tags")),
@@ -127,7 +135,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
         tags = {
-            "outputs": outputs.get("output"),
+            "outputs": outputs.get("output") if isinstance(outputs, dict) else outputs,
             "run_id": str(kwargs.get("run_id")),
             "end_tags": str(kwargs.get("tags")),
         }
