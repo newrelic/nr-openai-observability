@@ -8,18 +8,54 @@ import tiktoken
 
 logger = logging.getLogger("nr_openai_observability")
 
+from nr_openai_observability.call_vars import (
+    get_conversation_id,
+    set_response_model,
+    get_response_model,
+    set_completion_id,
+    get_completion_id,
+    set_vendor,
+    get_vendor,
+    get_conversation_id,
+)
 
-def build_messages_events(messages, model, completion_id, tags={}, start_seq_num=0):
+def build_messages_events(
+    messages, 
+    model, 
+    completion_id, 
+    message_id_override=None, 
+    response_id=None, 
+    tags={}, 
+    start_seq_num=0,
+    vendor=None
+):
+    if model is not None:
+        set_response_model(model)
+    if vendor is not None:
+        set_vendor(vendor)
+    if completion_id is not None:
+        set_completion_id(completion_id)
+
     events = []
     for index, message in enumerate(messages):
+        #Non-final messages (IE, user, system)
+        message_id = str(uuid.uuid4())
+        if message_id_override is not None:
+            #LangChain
+            message_id = message_id_override
+        elif response_id is not None:
+            #OpenAI
+            message_id = str(response_id) + "-" + str(index)
         currMessage = {
-            "id": str(uuid.uuid4()),
-            "completion_id": completion_id,
+            "id": message_id,
+            "completion_id": get_completion_id(),
+            "conversation_id": get_conversation_id(),
             "content": (message.get("content") or "")[:4095],
             "role": message.get("role"),
             "sequence": index + start_seq_num,
-            **compat_fields(["model", "response.model"], model),
-            "vendor": "openAI",
+            # Grab the last populated model for langchain returned messages
+            **compat_fields(["model", "response.model"], get_response_model()),
+            "vendor": get_vendor(),
             "ingest_source": "PythonSDK",
             **get_trace_details(),
         }
@@ -127,6 +163,7 @@ def build_stream_completion_events(
 
     completion = {
         "id": completion_id,
+        "conversation_id": get_conversation_id(),
         "api_key_last_four_digits": f"sk-{last_chunk.api_key[-4:]}",
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
@@ -181,10 +218,12 @@ def build_completion_summary(
     completion = {
         "id": completion_id,
         "request_id": response_headers.get("x-request-id", ""),
+        "conversation_id": get_conversation_id(),
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
+        "response.id": response.id,
         **compat_fields(
             ["organization", "response.organization"], response.organization
         ),
@@ -339,3 +378,18 @@ def get_trace_details():
 
 def compat_fields(keys, value):
     return dict.fromkeys(keys, value)
+    
+def build_ai_feedback_event(category, rating, message_id, conversation_id, request_id, message):
+    feedback_event = {
+        "id": str(uuid.uuid4()),
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "request_id": request_id,
+        "rating": rating,
+        "message": message,
+        "category": category,
+        "ingest_source": "PythonSDK",
+        "timestamp": datetime.now(),
+    }
+
+    return feedback_event

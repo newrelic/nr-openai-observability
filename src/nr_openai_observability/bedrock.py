@@ -16,6 +16,17 @@ from nr_openai_observability.consts import (
     TransactionBeginEventName,
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
+from nr_openai_observability.call_vars import (
+    set_response_model,
+    get_response_model,
+    set_completion_id,
+    get_completion_id,
+    set_vendor,
+    get_vendor,
+    set_ai_message_ids,
+    create_ai_message_id,
+    get_conversation_id,
+)
 
 
 logger = logging.getLogger("nr_openai_observability")
@@ -314,9 +325,12 @@ def build_bedrock_events(response, event_dict, time_delta):
 
         if len(messages) > 0:
             messages[-1]["is_final_response"] = True
+            ai_message_id = create_ai_message_id(messages[-1].get("id"))
+            set_ai_message_ids([ai_message_id])
 
         summary = {
             "id": completion_id,
+            "conversation_id": get_conversation_id(),
             "timestamp": datetime.now(),
             "response_time": int(time_delta * 1000),
             "model": model,
@@ -385,14 +399,22 @@ def build_bedrock_result_message(
     model=None,
     vendor=None,
 ):
+    if model is not None:
+        set_response_model(model)
+    if vendor is not None:
+        set_vendor(vendor)
+    if completion_id is not None:
+        set_completion_id(completion_id)
+
     message = {
         "id": message_id,
         "content": content[:4095],
+        "conversation_id": get_conversation_id(),
         "role": role,
-        "completion_id": completion_id,
+        "completion_id": get_completion_id(),
         "sequence": sequence,
-        **compat_fields(["model", "response.model"], model),
-        "vendor": vendor,
+        **compat_fields(["model", "response.model"], get_response_model()),
+        "vendor": get_vendor(),
         "ingest_source": "PythonSDK",
         **get_trace_details(),
     }

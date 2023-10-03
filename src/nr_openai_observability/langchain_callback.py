@@ -7,7 +7,15 @@ from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 from nr_openai_observability import monitor
 from nr_openai_observability.consts import CompletionEventName, ChainEventName, ToolEventName
 import newrelic.agent
-
+from nr_openai_observability.build_events import build_messages_events
+from nr_openai_observability.consts import MessageEventName
+from nr_openai_observability.call_vars import (
+    set_conversation_id,
+    get_response_model,
+    get_completion_id,
+    set_message_id,
+    get_message_id,
+)
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
@@ -37,6 +45,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
         """Run when LLM starts running."""
+        self._save_metadata(kwargs.get("metadata", {}))
         model = self._get_model(serialized, **kwargs)
 
         tags = {
@@ -55,6 +64,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         """Run when Chat Model starts running."""
+        self._save_metadata(kwargs.get("metadata", {}))
         invocation_params = kwargs.get("invocation_params", {})
         model = self._get_model(serialized, **kwargs)
 
@@ -187,6 +197,20 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
+        final_message = {
+            "role": "assistant",
+            "content": finish.return_values.get("output"),
+        }
+        response_message = build_messages_events(
+            [final_message],
+            get_response_model(),
+            get_completion_id(),
+            get_message_id(),
+            None,
+            {"is_returned_langchain_message": True},
+        )[0]
+
+        self.new_relic_monitor.record_event(response_message, MessageEventName)
         # self._finish_segment(kwargs["run_id"])
 
     def _start_segment(self, run_id, trace, tags={}):
@@ -245,3 +269,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             model = invocation_params.get("_type", "")
 
         return model
+
+    def _save_metadata(self, metadata):
+        set_conversation_id(metadata.get("conversation_id", None))
+        set_message_id(metadata.get("message_id", None))
