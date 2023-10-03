@@ -6,15 +6,24 @@ from typing import Any, Tuple
 import openai
 import newrelic.agent
 
+from nr_openai_observability.call_vars import get_message_id, get_conversation_id
 
-def build_messages_events(messages, model, tags={}, start_seq_num=0):
+def build_messages_events(messages, model, message_id_override=None, response_id=None, tags={}, start_seq_num=0):
     completion_id = newrelic.agent.current_span_id()
     trace_id = newrelic.agent.current_trace_id()
 
     events = []
     for index, message in enumerate(messages):
+        #Bedrock and non-final messages
+        message_id = str(uuid.uuid4())
+        if message_id_override is not None:
+            #LangChain
+            message_id = message_id_override
+        elif response_id is not None:
+            #OpenAI
+            message_id = str(response_id) + "-" + str(index)
         currMessage = {
-            "id": str(uuid.uuid4()),
+            "id": message_id,
             "content": (message.get("content") or "")[:4095],
             "role": message.get("role"),
             "completion_id": completion_id,
@@ -27,9 +36,7 @@ def build_messages_events(messages, model, tags={}, start_seq_num=0):
         currMessage.update(tags)
 
         events.append(currMessage)
-
     return events
-
 
 def _get_rate_limit_data(response_headers):
     def _get_numeric_header(name):
@@ -61,10 +68,12 @@ def build_completion_summary(
 
     completion = {
         "id": completion_id,
+        "conversation_id": get_conversation_id(),
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
+        "response.id": response.id,
         "usage.completion_tokens": response.usage.completion_tokens,
         "usage.total_tokens": response.usage.total_tokens,
         "usage.prompt_tokens": response.usage.prompt_tokens,
@@ -153,3 +162,18 @@ def build_embedding_error_event(request, error):
     }
 
     return embedding
+
+def build_ai_feedback_event(category, rating, message_id, conversation_id, request_id, message):
+    feedback_event = {
+        "id": str(uuid.uuid4()),
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "request_id": request_id,
+        "rating": rating,
+        "message": message,
+        "category": category,
+        "ingest_source": "PythonSDK",
+        "timestamp": datetime.now(),
+    }
+
+    return feedback_event
