@@ -17,6 +17,13 @@ from nr_openai_observability.build_events import (
     build_embedding_error_event,
     build_embedding_event,
     build_messages_events,
+    build_ai_feedback_event,
+)
+from nr_openai_observability.call_vars import (
+    get_message_id,
+    create_ai_message_id,
+    get_ai_message_ids,
+    set_ai_message_ids
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 
@@ -26,6 +33,7 @@ EventName = "LlmCompletion"
 MessageEventName = "LlmChatCompletionMessage"
 SummaryEventName = "LlmChatCompletionSummary"
 EmbeddingEventName = "LlmEmbedding"
+FeedbackEventName = "LlmChatFeedback"
 VectorSearchEventName = "LlmVectorSearch"
 VectorSearchResultsEventName = "LlmVectorSearchResult"
 TransactionBeginEventName = "LlmTransactionBegin"
@@ -227,9 +235,19 @@ def handle_finish_chat_completion(response, request, response_time):
     response_message = build_messages_events(
         [final_message],
         response.model,
+        get_message_id(),
+        response.get("id"),
         {"is_final_response": True},
         len(initial_messages),
     )[0]
+
+    ai_message_ids = []
+
+    ai_message_ids.append(
+        create_ai_message_id(response_message.get("id"), response.get("id"))
+    )
+
+    set_ai_message_ids(ai_message_ids, response.get("id"))
 
     monitor.record_event(response_message, MessageEventName)
 
@@ -528,3 +546,8 @@ def perform_patch():
 
     if "langchain" in sys.modules:
         perform_patch_langchain_vectorstores()
+
+def record_ai_feedback_event(category, rating, message_id, conversation_id = None, request_id = None, message = None):
+    event = build_ai_feedback_event(category, rating, message_id, conversation_id, request_id, message)
+
+    monitor.record_event(event, FeedbackEventName)

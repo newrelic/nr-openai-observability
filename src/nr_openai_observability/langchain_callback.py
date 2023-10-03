@@ -6,7 +6,7 @@ from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 
 from nr_openai_observability import monitor
 import newrelic.agent
-
+from nr_openai_observability.call_vars import set_conversation_id, set_message_id
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
@@ -49,6 +49,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         """Run when Chat Model starts running."""
+        metadata = kwargs.get("metadata", {})
+        set_conversation_id(metadata.get("conversation_id", None))
+        set_message_id(metadata.get("message_id", None))
         invocation_params = kwargs.get("invocation_params", {})
         tags = {
             "messages": "\n".join([f"{x.type}: {x.content}" for x in messages[0]]),
