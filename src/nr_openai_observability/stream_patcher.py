@@ -39,8 +39,14 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
 
     try:
         result = original_fn(*args, **kwargs)
-
     except Exception as ex:
+        handle_stream_completed(
+            None,
+            kwargs,
+            ex,
+            None,
+            None,
+        )
         raise ex
 
     wrapped_result = wrap_stream_generator(result)
@@ -78,8 +84,14 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
 
     try:
         result = original_fn(*args, **kwargs)
-
     except Exception as ex:
+        handle_stream_completed(
+            None,
+            kwargs,
+            ex,
+            None,
+            None,
+        )
         raise ex
 
     wrapped_result = wrap_stream_generator(result)
