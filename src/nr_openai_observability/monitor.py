@@ -329,19 +329,6 @@ def patcher_create_completion(original_fn, *args, **kwargs):
 
 @handle_errors
 def handle_create_completion(response, time_delta, **kwargs):
-    def flatten_dict(dd, separator=".", prefix="", index=""):
-        if len(index):
-            index = index + separator
-        return (
-            {
-                prefix + separator + index + k if prefix else k: v
-                for kk, vv in dd.items()
-                for k, v in flatten_dict(vv, separator, kk).items()
-            }
-            if isinstance(dd, dict)
-            else {prefix: dd}
-        )
-
     choices_payload = {}
     for i, choice in enumerate(response.get("choices")):
         choices_payload.update(flatten_dict(choice, prefix="choices", index=str(i)))
@@ -363,6 +350,20 @@ def handle_create_completion(response, time_delta, **kwargs):
     monitor.record_event(event_dict)
 
     return response
+
+
+def flatten_dict(dd, separator=".", prefix="", index=""):
+    if len(index):
+        index = index + separator
+    return (
+        {
+            prefix + separator + index + k if prefix else k: v
+            for kk, vv in dd.items()
+            for k, v in flatten_dict(vv, separator, kk).items()
+        }
+        if isinstance(dd, dict)
+        else {prefix: dd}
+    )
 
 
 def patcher_create_embedding(original_fn, *args, **kwargs):
@@ -521,6 +522,9 @@ def perform_patch():
         )
     except AttributeError:
         pass
+
+    from nr_openai_observability.bedrock import perform_patch_bedrock
+    perform_patch_bedrock()
 
     if "langchain" in sys.modules:
         perform_patch_langchain_vectorstores()
