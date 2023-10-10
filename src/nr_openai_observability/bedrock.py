@@ -234,7 +234,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                 logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
                 logger.info(f"\tcompletion_reason = {messages[-1]['stop_reason']}")
         if 'claude' in event_dict['modelId']:
-            # response message from assistant
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
@@ -247,6 +246,20 @@ def build_bedrock_events(response, event_dict, time_delta):
                     vendor=vendor
                 )
             )
+        if 'ai21.j2' in event_dict['modelId']:
+            for result in event_dict['completions']:
+                messages.append(
+                    build_bedrock_result_message(
+                        completion_id=completion_id,
+                        message_id=message_id,
+                        content=result['data']['text'],
+                        role='assistant',
+                        sequence=len(messages),
+                        stop_reason=result['finishReason']['reason'],
+                        model=model,
+                        vendor=vendor
+                    )
+                )
 
         summary = {
             "id": completion_id,
@@ -311,7 +324,10 @@ def get_bedrock_info(event_dict):
             input_message = event_dict['body']['prompt']
             stop_reason = event_dict['stop_reason']
         if 'ai21.j2' in event_dict['modelId']:
-            pass
+            input_message = event_dict['prompt.text']
+
+            for result in event_dict['completions']:
+                stop_reason = result['finishReason']['reason'] # keep the last one
 
     return (input_message, input_tokens, response_tokens, stop_reason)
 

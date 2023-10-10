@@ -72,7 +72,7 @@ def main():
     #  - anthropic.claude-instant-v1 (Instant v1.2)
     #  - anthropic.claude-v1         (v1.3)
     #  - anthropic.claude-v2         (v2)
-    modelId = "anthropic.claude-instant-v1"  # change this to use a different version from the model provider
+    modelId = "anthropic.claude-instant-v1"
     accept = "application/json"
     contentType = "application/json"
 
@@ -87,21 +87,26 @@ def main():
 
 
     # Run a query with AI21 Jurassic
-    # prompt_data = """Write me a blog about making strong business decisions as a leader."""
+    prompt_data = """Write me a blog about making strong business decisions as a leader."""
 
-    # body = json.dumps({"prompt": prompt_data, "maxTokens": 200})
-    # modelId = "ai21.j2-grande-instruct"  # change this to use a different version from the model provider
-    # accept = "application/json"
-    # contentType = "application/json"
+    body = json.dumps({"prompt": prompt_data, "maxTokens": 200})
+    # AI21 Jurassic modelIds:
+    # - ai21.j2-mid-v1
+    # - ai21.j2-ultra-v1
+    modelId = "ai21.j2-mid-v1" 
+    accept = "application/json"
+    contentType = "application/json"
 
-    # response = bedrock_runtime.invoke_model(
-    #     body=body, modelId=modelId, accept=accept, contentType=contentType
-    # )
-    # print(f"jurassic response: {response}")
-    # response_body = json.loads(response.get("body").read())
-    # print(f"jurassic body: {response_body}")
+    response = bedrock_runtime.invoke_model(
+        body=body, modelId=modelId, accept=accept, contentType=contentType
+    )
+    print(f"jurassic response: {response}")
+    response_body = json.loads(response.get("body").read())
+    print(f"jurassic body: {response_body}")
 
-    # print(response_body.get("completions")[0].get("data").get("text"))
+    print(response_body.get("completions")[0].get("data").get("text"))
+
+    # Run a query with Cohere
 
 
 if __name__ == "__main__":
