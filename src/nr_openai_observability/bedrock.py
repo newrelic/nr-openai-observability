@@ -167,8 +167,11 @@ def build_bedrock_events(response, event_dict, time_delta):
         completion_id = newrelic.agent.current_span_id() or str(uuid.uuid4())
         model = event_dict['modelId']
         vendor = 'bedrock'
-        tokens = input_tokens
         message_id = str(uuid.uuid4())
+        tokens = input_tokens
+
+        if tokens and response_tokens:
+            tokens += response_tokens
 
         if 'vendor' in event_dict:
             vendor = event_dict['vendor']
@@ -193,7 +196,8 @@ def build_bedrock_events(response, event_dict, time_delta):
                 role='user',
                 sequence=len(messages),
                 model=model,
-                vendor=vendor
+                vendor=vendor,
+                trace_id=trace_id
             )
         )
 
@@ -211,7 +215,8 @@ def build_bedrock_events(response, event_dict, time_delta):
                             sequence=len(messages),
                             stop_reason=result['completionReason'],
                             model=model,
-                            vendor=vendor
+                            vendor=vendor,
+                            trace_id=trace_id
                         )
                     )
                     logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
@@ -228,7 +233,8 @@ def build_bedrock_events(response, event_dict, time_delta):
                         sequence=len(messages),
                         stop_reason=result['completionReason'],
                         model=model,
-                        vendor=vendor
+                        vendor=vendor,
+                        trace_id=trace_id
                     )
                 )
                 logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
@@ -243,7 +249,8 @@ def build_bedrock_events(response, event_dict, time_delta):
                     sequence=len(messages),
                     stop_reason=event_dict['stop_reason'],
                     model=model,
-                    vendor=vendor
+                    vendor=vendor,
+                    trace_id=trace_id
                 )
             )
         elif 'ai21.j2' in model:
@@ -257,7 +264,8 @@ def build_bedrock_events(response, event_dict, time_delta):
                         sequence=len(messages),
                         stop_reason=result['finishReason']['reason'],
                         model=model,
-                        vendor=vendor
+                        vendor=vendor,
+                        trace_id=trace_id
                     )
                 )
         elif 'cohere.command' in model:
@@ -270,14 +278,19 @@ def build_bedrock_events(response, event_dict, time_delta):
                         role='assistant',
                         sequence=len(messages),
                         model=model,
-                        vendor=vendor
+                        vendor=vendor,
+                        trace_id=trace_id
                     )
                 )
+
+        if len(messages) > 0:
+            messages[-1]["is_final_response"] = True
 
         summary = {
             "id": completion_id,
             "timestamp": datetime.now(),
             "response_time": int(time_delta * 1000),
+            "model": model,
             "request.model": model,
             "response.model": model,
             "temperature": temperature,
@@ -312,7 +325,7 @@ def build_bedrock_events(response, event_dict, time_delta):
 
 
 
-def build_bedrock_result_message(completion_id, message_id, content, tokens=None, role=None, sequence=None, stop_reason=None, model=None, vendor=None):
+def build_bedrock_result_message(completion_id, message_id, content, tokens=None, role=None, sequence=None, stop_reason=None, model=None, vendor=None, trace_id=None):
     message = {
         "id": message_id,
         "content": content[:4095],
@@ -328,6 +341,8 @@ def build_bedrock_result_message(completion_id, message_id, content, tokens=None
         message["tokens"] = tokens
     if stop_reason:
         message["stop_reason"] = stop_reason
+    if trace_id:
+        message["trace.id"] = trace_id
 
     return message
 
