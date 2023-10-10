@@ -167,6 +167,8 @@ def build_bedrock_events(response, event_dict, time_delta):
         vendor = 'bedrock'
         max_tokens = 0
         tokens = input_tokens
+        message_id = str(uuid.uuid4())
+
 
         if 'vendor' in event_dict:
             vendor = event_dict['vendor']
@@ -177,27 +179,25 @@ def build_bedrock_events(response, event_dict, time_delta):
         if 'body' in event_dict and 'max_tokens_to_sample' in event_dict['body']:
             max_tokens = event_dict['body']['max_tokens_to_sample']
 
+        if 'ResponseMetadata' in response and 'RequestId' in response['ResponseMetadata']:
+            # TODO Is this general to all Bedrock LLMs? Can we move it up?
+            message_id = response['ResponseMetadata']['RequestId']
+
+        # input message
+        messages.append(
+            build_bedrock_result_message(
+                completion_id=completion_id,
+                message_id=message_id,
+                content=input_message[:4095],
+                tokens=input_tokens,
+                role='system',
+                sequence=len(messages),
+                model=model,
+                vendor=vendor
+            )
+        )
 
         if 'titan' in event_dict['modelId']:
-            # build out the input and output messages for this request
-            message_id = str(uuid.uuid4())
-            if 'ResponseMetadata' in response and 'RequestId' in response['ResponseMetadata']:
-                # TODO Is this general to all Bedrock LLMs? Can we move it up?
-                message_id = response['ResponseMetadata']['RequestId']
-
-            messages.append( # input message
-                build_bedrock_result_message(
-                    completion_id=completion_id,
-                    message_id=message_id,
-                    content=input_message[:4095],
-                    tokens=input_tokens,
-                    role='system',
-                    sequence=len(messages),
-                    model=model,
-                    vendor=vendor
-                )
-            )
-
             # handle 1 or more response messages
             if isinstance(event_dict['results'], list):
                 for result in event_dict['results']:
@@ -233,29 +233,43 @@ def build_bedrock_events(response, event_dict, time_delta):
                 )
                 logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
                 logger.info(f"\tcompletion_reason = {messages[-1]['stop_reason']}")
+        if 'claude' in event_dict['modelId']:
+            # response message from assistant
+            messages.append(
+                build_bedrock_result_message(
+                    completion_id=completion_id,
+                    message_id=message_id,
+                    content=event_dict['completion'],
+                    role='assistant',
+                    sequence=len(messages),
+                    stop_reason=event_dict['stop_reason'],
+                    model=model,
+                    vendor=vendor
+                )
+            )
 
-            summary = {
-                "id": completion_id,
-                "timestamp": datetime.now(),
-                "response_time": int(time_delta * 1000),
-                "request.model": model,
-                "response.model": model,
-                "usage.completion_tokens": response_tokens,
-                "usage.total_tokens": tokens,
-                "usage.prompt_tokens": input_tokens,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "finish_reason": stop_reason,
-                "api_type": None,
-                "vendor": vendor,
-                "ingest_source": "PythonSDK",
-                "number_of_messages": len(messages), 
-                "trace.id": trace_id,
-                "transactionId": transaction_id,
-                "response": messages[-1]['content'][:4095],
-                # "organization": response.organization,
-                # "api_version": response_headers.get("openai-version"),
-            }
+        summary = {
+            "id": completion_id,
+            "timestamp": datetime.now(),
+            "response_time": int(time_delta * 1000),
+            "request.model": model,
+            "response.model": model,
+            "usage.completion_tokens": response_tokens,
+            "usage.total_tokens": tokens,
+            "usage.prompt_tokens": input_tokens,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "finish_reason": stop_reason,
+            "api_type": None,
+            "vendor": vendor,
+            "ingest_source": "PythonSDK",
+            "number_of_messages": len(messages), 
+            "trace.id": trace_id,
+            "transactionId": transaction_id,
+            "response": messages[-1]['content'][:4095],
+            # "organization": response.organization,
+            # "api_version": response_headers.get("openai-version"),
+        }
 
     return (summary, messages)
 
@@ -293,7 +307,9 @@ def get_bedrock_info(event_dict):
             input_message = event_dict['body']['inputText']
             input_tokens = event_dict['inputTextTokenCount']
         if 'claude' in event_dict['modelId']:
-            pass
+            # tokens are not (yet) passed back from Anthropic Claude via Bedrock
+            input_message = event_dict['body']['prompt']
+            stop_reason = event_dict['stop_reason']
         if 'ai21.j2' in event_dict['modelId']:
             pass
 
