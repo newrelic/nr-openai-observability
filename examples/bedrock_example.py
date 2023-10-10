@@ -28,16 +28,7 @@ sys.path.append(vendor_dir)
 # End adding SDK
 
 @newrelic.agent.background_task()
-def main():
-    # AWS split Bedrock client into two parts. The 'bedrock' client has management
-    # functionality while the 'bedrock-runtime' can invoke specific LLMs.
-    # Use the following to see what type of models are available.
-    #
-    # bedrock = boto3.client('bedrock', 'us-east-1')
-    # print(json.dumps(bedrock.list_foundation_models(), indent=2))
-
-    bedrock_runtime = boto3.client('bedrock-runtime', 'us-east-1')
-
+def runTitan(bedrock_runtime):
     # Run a query with Amazon Titan
     prompt_data = """
     Command: Write me a blog about making strong business decisions as a leader.
@@ -62,6 +53,8 @@ def main():
     print(response_body.get("results")[0].get("outputText"))
 
 
+@newrelic.agent.background_task()
+def runAnthropic(bedrock_runtime):
     # Run a query with Anthropic Claude
     prompt_data = """Human: Write me a blog about making strong business decisions as a leader.
 
@@ -87,6 +80,8 @@ def main():
     print(response_body.get("completion"))
 
 
+@newrelic.agent.background_task()
+def runAi21(bedrock_runtime):
     # Run a query with AI21 Jurassic
     prompt_data = """Write me a blog about making strong business decisions as a leader."""
 
@@ -108,6 +103,8 @@ def main():
     print(response_body.get("completions")[0].get("data").get("text"))
 
 
+@newrelic.agent.background_task()
+def runCohere(bedrock_runtime):
     # Run a query with Cohere
     prompt_data = """Write me a blog about making strong business decisions as a leader."""
 
@@ -137,7 +134,19 @@ if __name__ == "__main__":
     from nr_openai_observability import monitor
     monitor.initialization(app_name)
 
-    main()
+    # AWS split Bedrock client into two parts. The 'bedrock' client has management
+    # functionality while the 'bedrock-runtime' can invoke specific LLMs.
+    # Use the following to see what type of models are available.
+    #
+    # bedrock = boto3.client('bedrock', 'us-east-1')
+    # print(json.dumps(bedrock.list_foundation_models(), indent=2))
+
+    bedrock_runtime = boto3.client('bedrock-runtime', 'us-east-1')
+
+    runTitan(bedrock_runtime)
+    runAnthropic(bedrock_runtime)
+    runAi21(bedrock_runtime)
+    runCohere(bedrock_runtime)
 
     # Allow the New Relic agent to send final messages as part of shutdown
     # The agent by default can send data up to a minute later
