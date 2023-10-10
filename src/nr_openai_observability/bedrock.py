@@ -8,7 +8,7 @@ import traceback
 import uuid
 
 from datetime import datetime
-from nr_openai_observability.monitor import _patched_call, monitor, MessageEventName, SummaryEventName
+from nr_openai_observability.monitor import _patched_call, monitor, MessageEventName, SummaryEventName, TransactionBeginEventName
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 
@@ -125,13 +125,15 @@ def handle_bedrock_create_completion(response, time_delta, **kwargs):
             body = json.loads(event_dict['body'])
             event_dict['body'] = body
 
-        (summary, messages) = build_bedrock_events(response, event_dict, time_delta)
+        (summary, messages, transaction_begin_event) = build_bedrock_events(response, event_dict, time_delta)
 
         logger.info(f"Bedrock Reported event dictionary:\n{event_dict}\n")
         logger.info(f'Bedrock summary event: {summary}')
         for event in messages:
             monitor.record_event(event, MessageEventName)
         monitor.record_event(summary, SummaryEventName)
+        monitor.record_event(transaction_begin_event, TransactionBeginEventName)
+
     except Exception as error:
         stacks = traceback.format_exception(error)
         logger.error(f'error writing bedrock event summary: {error}')
@@ -140,7 +142,7 @@ def handle_bedrock_create_completion(response, time_delta, **kwargs):
 
 def build_bedrock_events(response, event_dict, time_delta):
     """
-    returns (summary_event, list(message_events))
+    returns (summary_event, list(message_events), transaction_event)
     """
     (input_message, input_tokens, response_tokens, stop_reason, temperature, max_tokens) = get_bedrock_info(event_dict)
     summary = {}
@@ -188,7 +190,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                 message_id=message_id,
                 content=input_message[:4095],
                 tokens=input_tokens,
-                role='system',
+                role='user',
                 sequence=len(messages),
                 model=model,
                 vendor=vendor
@@ -299,7 +301,14 @@ def build_bedrock_events(response, event_dict, time_delta):
         if max_tokens:
             summary["max_tokens"] = max_tokens
 
-    return (summary, messages)
+        transaction_begin_event = {
+            "human_prompt": messages[0]['content'],
+            "vendor": vendor,
+            "trace.id": trace_id,
+            "ingest_source": "PythonAgentHybrid"
+        }
+
+    return (summary, messages, transaction_begin_event)
 
 
 
