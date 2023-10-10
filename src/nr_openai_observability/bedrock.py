@@ -170,7 +170,6 @@ def build_bedrock_events(response, event_dict, time_delta):
         tokens = input_tokens
         message_id = str(uuid.uuid4())
 
-
         if 'vendor' in event_dict:
             vendor = event_dict['vendor']
 
@@ -234,7 +233,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                 )
                 logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
                 logger.info(f"\tcompletion_reason = {messages[-1]['stop_reason']}")
-        if 'claude' in model:
+        elif 'claude' in model:
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
@@ -247,7 +246,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                     vendor=vendor
                 )
             )
-        if 'ai21.j2' in model:
+        elif 'ai21.j2' in model:
             for result in event_dict['completions']:
                 messages.append(
                     build_bedrock_result_message(
@@ -261,7 +260,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                         vendor=vendor
                     )
                 )
-        if 'cohere.command' in model:
+        elif 'cohere.command' in model:
             for result in event_dict['generations']:
                 messages.append(
                     build_bedrock_result_message(
@@ -281,12 +280,8 @@ def build_bedrock_events(response, event_dict, time_delta):
             "response_time": int(time_delta * 1000),
             "request.model": model,
             "response.model": model,
-            "usage.completion_tokens": response_tokens,
-            "usage.total_tokens": tokens,
-            "usage.prompt_tokens": input_tokens,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "finish_reason": stop_reason,
             "api_type": None,
             "vendor": vendor,
             "ingest_source": "PythonSDK",
@@ -294,27 +289,39 @@ def build_bedrock_events(response, event_dict, time_delta):
             "trace.id": trace_id,
             "transactionId": transaction_id,
             "response": messages[-1]['content'][:4095],
-            # "organization": response.organization,
-            # "api_version": response_headers.get("openai-version"),
         }
+
+        if stop_reason:
+            summary["finish_reason"] = stop_reason
+        if response_tokens:
+            summary["usage.completion_tokens"] = response_tokens
+        if tokens:
+            summary["usage.total_tokens"] = tokens
+        if input_tokens:
+            summary["usage.prompt_tokens"] = input_tokens
 
     return (summary, messages)
 
 
 
 def build_bedrock_result_message(completion_id, message_id, content, tokens=None, role=None, sequence=None, stop_reason=None, model=None, vendor=None):
-    return {
+    message = {
         "id": message_id,
         "content": content[:4095],
-        "tokens": tokens,
         "role": role,
         "completion_id": completion_id,
         "sequence": sequence,
-        "stop_reason": stop_reason,
         "model": model,
         "vendor": vendor,
         "ingest_source": "PythonSDK",
     }
+
+    if tokens:
+        message["tokens"] = tokens
+    if stop_reason:
+        message["stop_reason"] = stop_reason
+
+    return message
 
 def get_bedrock_info(event_dict):
     """
