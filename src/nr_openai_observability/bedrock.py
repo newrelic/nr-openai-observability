@@ -145,6 +145,7 @@ def build_bedrock_events(response, event_dict, time_delta):
     (input_message, input_tokens, response_tokens, stop_reason) = get_bedrock_info(event_dict)
     summary = {}
     messages = []
+    model = "bedrock-unknown"
     trace_id = newrelic.agent.current_trace_id()
     transaction_id = (
         newrelic.agent.current_transaction().guid
@@ -162,7 +163,7 @@ def build_bedrock_events(response, event_dict, time_delta):
 
     if 'modelId' in event_dict:
         completion_id = newrelic.agent.current_span_id() or str(uuid.uuid4())
-        model = event_dict['modelId'] or "bedrock-unknown"
+        model = event_dict['modelId']
         temperature = 0
         vendor = 'bedrock'
         max_tokens = 0
@@ -197,7 +198,7 @@ def build_bedrock_events(response, event_dict, time_delta):
             )
         )
 
-        if 'titan' in event_dict['modelId']:
+        if 'titan' in model:
             # handle 1 or more response messages
             if isinstance(event_dict['results'], list):
                 for result in event_dict['results']:
@@ -233,7 +234,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                 )
                 logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
                 logger.info(f"\tcompletion_reason = {messages[-1]['stop_reason']}")
-        if 'claude' in event_dict['modelId']:
+        if 'claude' in model:
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
@@ -246,7 +247,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                     vendor=vendor
                 )
             )
-        if 'ai21.j2' in event_dict['modelId']:
+        if 'ai21.j2' in model:
             for result in event_dict['completions']:
                 messages.append(
                     build_bedrock_result_message(
@@ -256,6 +257,19 @@ def build_bedrock_events(response, event_dict, time_delta):
                         role='assistant',
                         sequence=len(messages),
                         stop_reason=result['finishReason']['reason'],
+                        model=model,
+                        vendor=vendor
+                    )
+                )
+        if 'cohere.command' in model:
+            for result in event_dict['generations']:
+                messages.append(
+                    build_bedrock_result_message(
+                        completion_id=completion_id,
+                        message_id=message_id,
+                        content=result['text'],
+                        role='assistant',
+                        sequence=len(messages),
                         model=model,
                         vendor=vendor
                     )
@@ -309,7 +323,9 @@ def get_bedrock_info(event_dict):
     (input_message, input_tokens, response_tokens, stop_reason) = (None, None, None, None)
 
     if 'modelId' in event_dict:
-        if 'titan' in event_dict['modelId']:
+        model = event_dict['modelId']
+
+        if 'titan' in model:
             response_tokens = 0
 
             if isinstance(event_dict['results'], list):
@@ -319,15 +335,16 @@ def get_bedrock_info(event_dict):
 
             input_message = event_dict['body']['inputText']
             input_tokens = event_dict['inputTextTokenCount']
-        if 'claude' in event_dict['modelId']:
-            # tokens are not (yet) passed back from Anthropic Claude via Bedrock
+        if 'claude' in model:
             input_message = event_dict['body']['prompt']
             stop_reason = event_dict['stop_reason']
-        if 'ai21.j2' in event_dict['modelId']:
+        if 'ai21.j2' in model:
             input_message = event_dict['prompt.text']
 
             for result in event_dict['completions']:
                 stop_reason = result['finishReason']['reason'] # keep the last one
+        if 'cohere.command' in model:
+            input_message = event_dict['prompt']
 
     return (input_message, input_tokens, response_tokens, stop_reason)
 

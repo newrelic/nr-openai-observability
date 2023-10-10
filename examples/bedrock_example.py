@@ -61,6 +61,7 @@ def main():
 
     print(response_body.get("results")[0].get("outputText"))
 
+
     # Run a query with Anthropic Claude
     prompt_data = """Human: Write me a blog about making strong business decisions as a leader.
 
@@ -106,7 +107,25 @@ def main():
 
     print(response_body.get("completions")[0].get("data").get("text"))
 
+
     # Run a query with Cohere
+    prompt_data = """Write me a blog about making strong business decisions as a leader."""
+
+    body = json.dumps({"prompt": prompt_data, "max_tokens": 200, "temperature": 0.75})
+    # Cohere modelIds:
+    # - cohere.command-text-v14
+    modelId = "cohere.command-text-v14"
+    accept = "application/json"
+    contentType = "application/json"
+
+    response = bedrock_runtime.invoke_model(
+        body=body, modelId=modelId, accept=accept, contentType=contentType
+    )
+    print(f"cohere command response: {response}")
+    response_body = json.loads(response.get("body").read())
+    print(f"cohere command body: {response_body}")
+
+    print(response_body.get("generations")[0].get("text"))
 
 
 if __name__ == "__main__":
