@@ -142,7 +142,7 @@ def build_bedrock_events(response, event_dict, time_delta):
     """
     returns (summary_event, list(message_events))
     """
-    (input_message, input_tokens, response_tokens, stop_reason) = get_bedrock_info(event_dict)
+    (input_message, input_tokens, response_tokens, stop_reason, temperature, max_tokens) = get_bedrock_info(event_dict)
     summary = {}
     messages = []
     model = "bedrock-unknown"
@@ -164,9 +164,7 @@ def build_bedrock_events(response, event_dict, time_delta):
     if 'modelId' in event_dict:
         completion_id = newrelic.agent.current_span_id() or str(uuid.uuid4())
         model = event_dict['modelId']
-        temperature = 0
         vendor = 'bedrock'
-        max_tokens = 0
         tokens = input_tokens
         message_id = str(uuid.uuid4())
 
@@ -281,7 +279,6 @@ def build_bedrock_events(response, event_dict, time_delta):
             "request.model": model,
             "response.model": model,
             "temperature": temperature,
-            "max_tokens": max_tokens,
             "api_type": None,
             "vendor": vendor,
             "ingest_source": "PythonSDK",
@@ -299,6 +296,8 @@ def build_bedrock_events(response, event_dict, time_delta):
             summary["usage.total_tokens"] = tokens
         if input_tokens:
             summary["usage.prompt_tokens"] = input_tokens
+        if max_tokens:
+            summary["max_tokens"] = max_tokens
 
     return (summary, messages)
 
@@ -325,15 +324,19 @@ def build_bedrock_result_message(completion_id, message_id, content, tokens=None
 
 def get_bedrock_info(event_dict):
     """
-    (input_message, input_tokens, response_tokens, completion_reason) = 
+    (input_message, input_tokens, response_tokens, completion_reason, default_temp, max_tokens) =
+
+    default temperature and max tokens per model was found at https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html
     """
-    (input_message, input_tokens, response_tokens, stop_reason) = (None, None, None, None)
+    (input_message, input_tokens, response_tokens, stop_reason, default_temp, default_max_tokens) = (None, None, None, None, 0, 0)
 
     if 'modelId' in event_dict:
         model = event_dict['modelId']
 
         if 'titan' in model:
             response_tokens = 0
+            default_temp = 0
+            default_max_tokens = 512
 
             if isinstance(event_dict['results'], list):
                 for result in event_dict['results']:
@@ -345,15 +348,21 @@ def get_bedrock_info(event_dict):
         if 'claude' in model:
             input_message = event_dict['body']['prompt']
             stop_reason = event_dict['stop_reason']
+            default_temp = 0.5
+            default_max_tokens = 200
         if 'ai21.j2' in model:
             input_message = event_dict['prompt.text']
+            default_temp = 0.5
+            default_max_tokens = 200
 
             for result in event_dict['completions']:
                 stop_reason = result['finishReason']['reason'] # keep the last one
         if 'cohere.command' in model:
             input_message = event_dict['prompt']
+            default_temp = 0.9
+            default_max_tokens = 20
 
-    return (input_message, input_tokens, response_tokens, stop_reason)
+    return (input_message, input_tokens, response_tokens, stop_reason, default_temp, default_max_tokens)
 
 
 def bind__create_api_method(py_operation_name, operation_name, service_model,
