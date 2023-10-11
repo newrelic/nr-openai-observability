@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 from nr_openai_observability.monitor import _patched_call, monitor, MessageEventName, SummaryEventName, TransactionBeginEventName
 from nr_openai_observability.error_handling_decorator import handle_errors
+from nr_openai_observability.call_vars import set_ai_message_ids, create_ai_message_id
 
 
 logger = logging.getLogger("nr_openai_observability")
@@ -285,6 +286,12 @@ def build_bedrock_events(response, event_dict, time_delta):
 
         if len(messages) > 0:
             messages[-1]["is_final_response"] = True
+            ai_message_ids = []
+            ai_message_ids.append(
+                create_ai_message_id(messages[-1].get("message_id"))
+            )
+            set_ai_message_ids(ai_message_ids)
+            
 
         summary = {
             "id": completion_id,
