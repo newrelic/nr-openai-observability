@@ -9,14 +9,12 @@ import sys
 # For this example to work, you should set the following environment variables
 # to values that work for your specific environment.
 #
-#   NEW_RELIC_APP_NAME            - defaults to 'aws-bedrock-sample' if not set
+#   NEW_RELIC_APP_NAME            - defaults to 'openai-bedrock-comparison' if not set
 #   NEW_RELIC_LICENSE_KEY
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
 #   OPENAI_API_KEY
 #   
-
-app_name = os.getenv('NEW_RELIC_APP_NAME', 'openai-bedrock-comparison')
 
 # When testing changes within the SDK, we need to load the changes from a local
 # directory. These lines allow for this. Unless you are testing changes to the
@@ -86,6 +84,8 @@ def runBedrock(prompt, user_requst):
 
 
 if __name__ == "__main__":
+    app_name = 'openai-bedrock-comparison'
+
     # Enable New Relic Python agent
     newrelic.agent.initialize()
     newrelic.agent.register_application(name=app_name, timeout=10)
