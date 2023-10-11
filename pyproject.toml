@@ -12,6 +12,7 @@ keywords = ["newrelic", "observability", "openai", "gpt", "chatGPT", "GPT-4", "m
 python = ">=3.8.1,<4.0.0"
 newrelic = "^9.0.0"
 openai = ">=0.8,<0.30"
+tiktoken = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.2.1"
