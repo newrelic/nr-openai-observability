@@ -9,7 +9,7 @@ import sys
 # For this example to work, you should set the following environment variables
 # to values that work for your specific environment.
 #
-#   NEW_RELIC_APP_NAME            - defaults to 'openai-bedrock-comparison' if not set
+#   NEW_RELIC_APP_NAME 
 #   NEW_RELIC_LICENSE_KEY
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
@@ -59,7 +59,7 @@ def runOpenAI(prompt, user_request):
 
 @newrelic.agent.background_task()
 @newrelic.agent.function_trace(name="bedrock")
-def runBedrock(prompt, user_requst):
+def runBedrock(prompt, user_request):
     """
     Run a query with AWS Bedrock using Anthropic Claude v2.
     """
@@ -84,7 +84,10 @@ def runBedrock(prompt, user_requst):
 
 
 if __name__ == "__main__":
-    app_name = 'openai-bedrock-comparison'
+    app_name = os.getenv('NEW_RELIC_APP_NAME')
+    if not app_name:
+        print("You must set the NEW_RELIC_APP_NAME environment variable.")
+        exit(1)
 
     # Enable New Relic Python agent
     newrelic.agent.initialize()
@@ -101,7 +104,7 @@ if __name__ == "__main__":
     This could include providing step-by-step instructions for solving a problem, 
     demonstrating various techniques with visuals or suggesting online 
     resources for further study."""
-    user_request = "My first request is “I need help understanding how probability works." 
+    user_request = 'My first request is “I need help understanding how probability works."' 
 
     runOpenAI(prompt, user_request)
     runBedrock(prompt, user_request)

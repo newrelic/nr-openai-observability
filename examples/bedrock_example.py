@@ -8,13 +8,12 @@ import sys
 # For this example to work, you should set the following environment variables
 # to values that work for your specific environment.
 #
-#   NEW_RELIC_APP_NAME            - defaults to 'aws-bedrock-sample' if not set
+#   NEW_RELIC_APP_NAME
 #   NEW_RELIC_LICENSE_KEY
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
 #
 
-app_name = os.getenv('NEW_RELIC_APP_NAME', 'aws-bedrock-sample')
 
 # When testing changes within the SDK, we need to load the changes from a local
 # directory. These lines allow for this. Unless you are testing changes to the
@@ -130,6 +129,12 @@ def runCohere(bedrock_runtime):
 
 
 if __name__ == "__main__":
+    app_name = os.getenv('NEW_RELIC_APP_NAME')
+    if not app_name:
+        print("You must set the NEW_RELIC_APP_NAME environment variable.")
+        exit(1)
+
+
     # Enable New Relic Python agent
     newrelic.agent.initialize()
     newrelic.agent.register_application(name=app_name, timeout=10)
