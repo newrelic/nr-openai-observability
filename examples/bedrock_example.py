@@ -28,6 +28,7 @@ sys.path.append(vendor_dir)
 # End adding SDK
 
 @newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="titan")
 def runTitan(bedrock_runtime):
     # Run a query with Amazon Titan
     prompt_data = """
@@ -54,6 +55,7 @@ def runTitan(bedrock_runtime):
 
 
 @newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="anthropic")
 def runAnthropic(bedrock_runtime):
     # Run a query with Anthropic Claude
     prompt_data = """Human: Write me a blog about making strong business decisions as a leader.
@@ -81,6 +83,7 @@ def runAnthropic(bedrock_runtime):
 
 
 @newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="ai21")
 def runAi21(bedrock_runtime):
     # Run a query with AI21 Jurassic
     prompt_data = """Write me a blog about making strong business decisions as a leader."""
@@ -104,6 +107,7 @@ def runAi21(bedrock_runtime):
 
 
 @newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="cohere")
 def runCohere(bedrock_runtime):
     # Run a query with Cohere
     prompt_data = """Write me a blog about making strong business decisions as a leader."""

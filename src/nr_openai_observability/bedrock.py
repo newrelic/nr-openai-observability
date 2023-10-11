@@ -72,7 +72,7 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
 
     try:
         with newrelic.agent.FunctionTrace(
-            name="AI/Bedrock/Chat/Completions/Create", group=""
+            name="AI/Bedrock/Chat/Completions/Create", group="", terminal=True
         ):
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
