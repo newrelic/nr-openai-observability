@@ -4,13 +4,20 @@ import logging
 logger = logging.getLogger("nr_openai_observability")
 conversation_id = contextvars.ContextVar('conversation_id')
 message_id = contextvars.ContextVar('message_id')
+response_model = contextvars.ContextVar('response_model')
 ai_message_ids = contextvars.ContextVar('ai_message_ids')
 
 def set_message_id(id):
     message_id.set(id)
 
-def get_message_id(default=None):
+def get_message_id():
     return message_id.get(None)
+
+def set_response_model(model):
+    response_model.set(model)
+
+def get_response_model():
+    return response_model.get(None)
 
 def get_ai_message_ids(response_id=None):
     if response_id is not None:

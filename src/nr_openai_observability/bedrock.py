@@ -286,11 +286,8 @@ def build_bedrock_events(response, event_dict, time_delta):
 
         if len(messages) > 0:
             messages[-1]["is_final_response"] = True
-            ai_message_ids = []
-            ai_message_ids.append(
-                create_ai_message_id(messages[-1].get("message_id"))
-            )
-            set_ai_message_ids(ai_message_ids)
+            ai_message_id = create_ai_message_id(messages[-1].get("message_id"))
+            set_ai_message_ids([ai_message_id])
             
 
         summary = {

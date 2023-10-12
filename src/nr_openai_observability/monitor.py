@@ -235,7 +235,7 @@ def handle_finish_chat_completion(response, request, response_time):
     response_message = build_messages_events(
         [final_message],
         response.model,
-        get_message_id(),
+        None,
         response.get("id"),
         {"is_final_response": True},
         len(initial_messages),

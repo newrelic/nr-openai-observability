@@ -1,4 +1,3 @@
-import logging
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -6,7 +5,12 @@ from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 
 from nr_openai_observability import monitor
 import newrelic.agent
-from nr_openai_observability.call_vars import set_conversation_id, set_message_id
+from nr_openai_observability.build_events import build_messages_events
+from nr_openai_observability.call_vars import (
+    set_conversation_id,
+    set_message_id,
+    get_message_id,
+)
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
@@ -179,6 +183,20 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
+        final_message = {
+            "role": "assistant",
+            "content": finish.return_values.get("output"),
+        }
+        # TODO: Find best place to get the response model, its not available here.
+        response_message = build_messages_events(
+            [final_message],
+            None,
+            get_message_id(),
+            None,
+            {"is_returned_langchain_message": True},
+        )[0]
+
+        monitor.monitor.record_event(response_message, monitor.MessageEventName)
         # self._finish_segment(kwargs["run_id"])
 
     def _start_segment(self, run_id, trace, tags={}):

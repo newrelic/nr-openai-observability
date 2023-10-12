@@ -6,11 +6,19 @@ from typing import Any, Tuple
 import openai
 import newrelic.agent
 
-from nr_openai_observability.call_vars import get_message_id, get_conversation_id
+from nr_openai_observability.call_vars import (
+    get_message_id,
+    get_conversation_id,
+    set_response_model,
+    get_response_model
+)
 
 def build_messages_events(messages, model, message_id_override=None, response_id=None, tags={}, start_seq_num=0):
     completion_id = newrelic.agent.current_span_id()
     trace_id = newrelic.agent.current_trace_id()
+
+    if model is not None:
+        set_response_model(model)
 
     events = []
     for index, message in enumerate(messages):
@@ -29,7 +37,7 @@ def build_messages_events(messages, model, message_id_override=None, response_id
             "completion_id": completion_id,
             "trace.id": trace_id,
             "sequence": index + start_seq_num,
-            "model": model,
+            "model": get_response_model(),
             "vendor": "openAI",
             "ingest_source": "PythonSDK",
         }
