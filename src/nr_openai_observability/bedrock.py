@@ -18,7 +18,6 @@ logger.setLevel(logging.INFO)
 
 def perform_patch_bedrock():
     try:
-        logger.info('Josh --- Attempting to patch Bedrock invoke_model')
         botocore.client.ClientCreator.create_client = _patched_call(
             botocore.client.ClientCreator.create_client, patcher_aws_create_api
         )
@@ -30,24 +29,18 @@ def patcher_aws_create_api(original_fn, *args, **kwargs):
     # We are in the AWS API to create a new object, we need to invoke that first!
     try:
         from botocore.model import ServiceModel
-        logger.info(f'Josh --- invoking method {original_fn} with args {args}, kwargs {kwargs}')
         response = original_fn(*args, **kwargs)
-        logger.info(f'Josh --- original_fn {original_fn} returned {response}')
 
         cls = type(response)
         name = cls.__qualname__
         if cls.__module__ is not None and cls.__module__ != '__builtin__':
             name = f'{cls.__module__}.{cls.__qualname__}'
 
-        logger.info(f'Josh --- returned object is of type {name}')
-
         if name == 'botocore.client.BedrockRuntime':
             bedrock_method = 'invoke_model'
-            logger.info(f'Josh --- instrument bedrock class {bedrock_method}!')
             original_invoke_model = getattr(response, bedrock_method)
 
             if original_invoke_model is not None:
-                logger.info(f"Josh --- found method '{bedrock_method}' on {response}")
                 setattr(response, bedrock_method, _patched_call(
                     original_invoke_model, 
                     patcher_bedrock_create_completion
@@ -63,10 +56,6 @@ def patcher_aws_create_api(original_fn, *args, **kwargs):
 
 
 def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
-    logger.info(
-        f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
-    )
-
     timestamp = time.time()
     result, time_delta = None, None
 
@@ -76,9 +65,6 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
         ):
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
-
-            logger.info(f"Finished running function: '{original_fn.__qualname__}' in {time_delta}.")
-            logger.info(f"Josh ---  returned result '${result}'")
     except Exception as error:
         logger.error(f"error invoking bedrock function: {error}")
         return result
@@ -90,7 +76,6 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     contents = result['body'].read()
     bio = BytesIO(contents)
     result['body'] = StreamingBody(bio, len(contents))
-    logger.info(f'Josh --- result body {contents}')
 
     handle_bedrock_create_completion(result, time_delta, **kwargs)
 
@@ -118,8 +103,6 @@ def handle_bedrock_create_completion(response, time_delta, **kwargs):
         if 'credentials' in event_dict:
             event_dict.pop('credentials')
 
-        logger.info(f'handle_bedrock_create_completion: response {response},\n\ttime_delta {time_delta},\n\tkwargs {kwargs},\n\tcontents {contents}')
-
         # convert body from a str to a json dictionary
         if 'body' in event_dict and type(event_dict['body']) is str:
             body = json.loads(event_dict['body'])
@@ -127,18 +110,13 @@ def handle_bedrock_create_completion(response, time_delta, **kwargs):
 
         (summary, messages, transaction_begin_event) = build_bedrock_events(response, event_dict, time_delta)
 
-        logger.info(f"Bedrock Reported event dictionary:\n{event_dict}\n")
-        logger.info(f'Bedrock summary event: {summary}')
         for event in messages:
             monitor.record_event(event, MessageEventName)
         monitor.record_event(summary, SummaryEventName)
         monitor.record_event(transaction_begin_event, TransactionBeginEventName)
 
     except Exception as error:
-        stacks = traceback.format_exception(error)
-        logger.error(f'error writing bedrock event summary: {error}')
-        logger.error(stacks)
-
+        raise error
 
 def build_bedrock_events(response, event_dict, time_delta):
     """
@@ -154,14 +132,6 @@ def build_bedrock_events(response, event_dict, time_delta):
         if newrelic.agent.current_transaction() != None
         else None
     )
-
-    logger.info(f'\n\nevent_dict = {event_dict}')
-
-    logger.info("parsed Bedrock info:")
-    logger.info(f"\tinput_message = {input_message[:30]}")
-    logger.info(f"\tinput_tokens = {input_tokens}")
-    logger.info(f"\tresponse_tokens = {response_tokens}")
-
 
     if 'modelId' in event_dict:
         completion_id = newrelic.agent.current_span_id() or str(uuid.uuid4())
@@ -219,8 +189,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                             trace_id=trace_id
                         )
                     )
-                    logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
-                    logger.info(f"\tcompletion_reason = {messages[-1]['stop_reason']}")
             else: # TODO Is this actually a case? Or is it always a list?
                 result = event_dict['results']
                 messages.append(
@@ -237,8 +205,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                         trace_id=trace_id
                     )
                 )
-                logger.info(f"\tresponse_message = {messages[-1]['content'][:30]}")
-                logger.info(f"\tcompletion_reason = {messages[-1]['stop_reason']}")
         elif 'claude' in model:
             messages.append(
                 build_bedrock_result_message(

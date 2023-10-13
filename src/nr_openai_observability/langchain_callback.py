@@ -1,4 +1,4 @@
-import logging
+import re
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -37,12 +37,15 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
         """Run when LLM starts running."""
+        model = self._get_model(serialized, **kwargs)
+
         tags = {
             "messages": "\n".join(prompts),
-            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
+            "model_name": model,
         }
         trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
         self._start_segment(kwargs["run_id"], trace, tags)
+
 
     # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
     def on_chat_model_start(
@@ -53,10 +56,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> Any:
         """Run when Chat Model starts running."""
         invocation_params = kwargs.get("invocation_params", {})
+        model = self._get_model(serialized, **kwargs)
+
         tags = {
             "messages": "\n".join([f"{x.type}: {x.content}" for x in messages[0]]),
-            "model": invocation_params.get("model"),
-            "model_name": invocation_params.get("model_name"),
+            "model": model,
+            "model_name": invocation_params.get("model_name") or model,
             "temperature": invocation_params.get("temperature"),
             "request_timeout": invocation_params.get("request_timeout"),
             "max_tokens": invocation_params.get("max_tokens"),
@@ -222,3 +227,18 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                 self.new_relic_monitor.record_event(attrs, event_name)
 
             return trace
+
+    def _get_model(self, serialized: Dict[str, Any], **kwargs: Any) -> str:
+        invocation_params = kwargs.get("invocation_params", {})
+        model = invocation_params.get("model")
+        if not model:
+            model = invocation_params.get("model_id")
+        if not model:
+            if 'repr' in serialized:
+                match = re.match(".*model_id='([^']+)'.*", serialized['repr'])
+                if match:
+                    model = match.group(1)
+        if not model:
+            model = invocation_params.get("_type", "")
+
+        return model
