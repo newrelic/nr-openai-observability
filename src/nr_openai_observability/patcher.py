@@ -77,7 +77,6 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     )
 
     result, time_delta = None, None
-    span = monitor.create_span()
     try:
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
@@ -90,17 +89,15 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        span.finish()
         build_completion_summary_for_error(kwargs, ex)
         raise ex
-    
+
 
 async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
     result, time_delta = None, None
-    span = monitor.create_span()
     try:
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
@@ -116,8 +113,8 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
     except Exception as ex:
         build_completion_summary_for_error(kwargs, ex)
         raise ex
-    
-    
+
+
 @handle_errors
 def handle_start_completion(request):
     transaction = newrelic.agent.current_transaction()
