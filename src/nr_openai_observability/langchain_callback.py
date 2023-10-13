@@ -7,6 +7,9 @@ from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 from nr_openai_observability import monitor
 import newrelic.agent
 
+CompletionEventName = "LlmCompletion"
+ChainEventName = "LlmChain"
+ToolEventName = "LlmTool"
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
@@ -64,7 +67,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         trace = newrelic.agent.FunctionTrace(
             name="AI/LangChain/RunChatModel", terminal=False
         )
-        self._start_segment(kwargs["run_id"], trace)
+        self._start_segment(kwargs["run_id"], trace, tags)
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
@@ -86,14 +89,14 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                     "total_tokens": token_usage.get("total_tokens", None),
                 }
             )
-        self._finish_segment(kwargs["run_id"])
+        self._finish_segment(kwargs["run_id"], tags, CompletionEventName)
 
     def on_llm_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when LLM errors."""
         tags = {"error": str(error)}
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, CompletionEventName)
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
@@ -126,14 +129,14 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "run_id": str(kwargs.get("run_id")),
             "end_tags": str(kwargs.get("tags")),
         }
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ChainEventName)
 
     def on_chain_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when chain errors."""
         tags = {"error": str(error)}
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ChainEventName)
 
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
@@ -156,7 +159,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "tool_output": output,
             "tool_invocation_counter": self.get_and_update_tool_invocation_counter(),
         }
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ToolEventName)
 
     def on_tool_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
@@ -166,7 +169,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "error": str(error),
         }
         newrelic.agent.notice_error()
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ToolEventName)
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
@@ -192,7 +195,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
         self.trace_stacks[run_id] = stack
 
-    def _finish_segment(self, run_id, tags={}):
+    def _finish_segment(self, run_id, tags={}, event_name=None):
         stack = self.trace_stacks.get(run_id, [])
         if stack != None and len(stack) != 0:
             trace = stack.pop()
@@ -204,5 +207,18 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                 trace.add_custom_attribute(key, val)
 
             trace.__exit__(None, None, None)
+
+            if event_name:
+                attrs = trace.user_attributes
+
+                if tags:
+                    attrs.update(tags)
+
+                attrs['trace.id'] = getattr(newrelic.agent.current_transaction(), "trace_id", None) or trace.guid
+                attrs['guid'] = trace.guid
+                attrs['parent.id'] = None
+                attrs['duration.ms'] = trace.duration * 1000
+
+                self.new_relic_monitor.record_event(attrs, event_name)
 
             return trace

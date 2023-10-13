@@ -45,7 +45,7 @@ def runLangchainBedrock(prompt, app_name):
 
     boto_client = boto3.client("bedrock-runtime", "us-east-1")
     bedrock_llm = Bedrock(
-        model_id="anthropic.claude-v2", 
+        model_id="anthropic.claude-instant-v1", # "anthropic.claude-v2",
         client=boto_client,
     )
 
