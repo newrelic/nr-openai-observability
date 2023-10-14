@@ -1,5 +1,7 @@
 import time
 
+import newrelic.agent
+
 import nr_openai_observability.consts as consts
 from nr_openai_observability.build_events import (
     build_completion_summary_for_error,
@@ -8,7 +10,6 @@ from nr_openai_observability.build_events import (
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.openai_monitoring import monitor
-import newrelic.agent
 
 
 def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
@@ -114,8 +115,8 @@ def handle_finish_chat_completion(last_chunk, request, response_time, final_mess
         last_chunk,
         request,
         getattr(last_chunk, "_nr_response_headers"),
-        response_time,
         final_message,
+        response_time,
     )
     delattr(last_chunk, "_nr_response_headers")
 
