@@ -5,13 +5,13 @@ import time
 import uuid
 from argparse import ArgumentError
 
-import openai
 import newrelic.agent
+import openai
 
 import nr_openai_observability.consts as consts
 from nr_openai_observability.build_events import (
-    build_completion_summary_for_error,
     build_completion_summary,
+    build_completion_summary_for_error,
     build_embedding_error_event,
     build_embedding_event,
     build_messages_events,
@@ -89,7 +89,9 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        build_completion_summary_for_error(kwargs, ex)
+        monitor.record_event(
+            build_completion_summary_for_error(kwargs, ex), consts.SummaryEventName
+        )
         raise ex
 
 
@@ -111,7 +113,9 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
 
             return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        build_completion_summary_for_error(kwargs, ex)
+        monitor.record_event(
+            build_completion_summary_for_error(kwargs, ex), consts.SummaryEventName
+        )
         raise ex
 
 

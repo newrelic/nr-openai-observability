@@ -28,7 +28,10 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
                     yield chunk
                 time_delta = time.time() - timestamp
         except Exception as ex:
-            build_completion_summary_for_error(kwargs, ex, True)
+            monitor.record_event(
+                build_completion_summary_for_error(kwargs, ex, True),
+                consts.SummaryEventName,
+            )
             raise ex
 
         handle_finish_chat_completion(
@@ -38,7 +41,10 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
     try:
         result = original_fn(*args, **kwargs)
     except Exception as ex:
-        build_completion_summary_for_error(kwargs, ex, True)
+        monitor.record_event(
+            build_completion_summary_for_error(kwargs, ex, True),
+            consts.SummaryEventName,
+        )
         raise ex
 
     wrapped_result = wrap_stream_generator(result)
@@ -62,7 +68,10 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
                     yield chunk
                 time_delta = time.time() - timestamp
         except Exception as ex:
-            build_completion_summary_for_error(kwargs, ex, True)
+            monitor.record_event(
+                build_completion_summary_for_error(kwargs, ex, True),
+                consts.SummaryEventName,
+            )
             raise ex
 
         handle_finish_chat_completion(
@@ -72,7 +81,10 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
     try:
         result = original_fn(*args, **kwargs)
     except Exception as ex:
-        build_completion_summary_for_error(kwargs, ex, True)
+        monitor.record_event(
+            build_completion_summary_for_error(kwargs, ex, True),
+            consts.SummaryEventName,
+        )
         raise ex
 
     wrapped_result = wrap_stream_generator(result)
