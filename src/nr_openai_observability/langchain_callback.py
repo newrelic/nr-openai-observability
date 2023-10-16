@@ -151,7 +151,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run when tool starts running."""
         # we don't know if the tool is actually for Pinecone, but this is a best guess if 
         # the module is in scope.
-        self.new_relic_monitor.record_library('pinecone', 'Pinecone')
+        self.new_relic_monitor.record_library('pinecone-client', 'Pinecone')
         tool_name = serialized.get("name")
         trace = newrelic.agent.FunctionTrace(
             name=f"AI/LangChain/Tool/{tool_name}", terminal=False
