@@ -8,7 +8,7 @@ import uuid
 
 from anthropic import _tokenizers
 from datetime import datetime
-from nr_openai_observability.monitor import _patched_call, monitor, MessageEventName, SummaryEventName, TransactionBeginEventName
+from nr_openai_observability.monitor import _patched_call, monitor, EventName, MessageEventName, SummaryEventName, TransactionBeginEventName
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 
@@ -66,8 +66,8 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
     except Exception as error:
-        logger.error(f"error invoking bedrock function: {error}")
-        return result
+        build_completion_summary_for_error(error, **kwargs)
+        raise result
 
     # print the HTTP body
     from botocore.response import StreamingBody
@@ -85,6 +85,22 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     result['body'] = StreamingBody(bio, len(contents))
     return result
 
+
+def build_completion_summary_for_error(error, **kwargs):
+    logger.error(f"error invoking bedrock function: {error}")
+
+    completion = {
+        "id": str(uuid.uuid4()),
+        "vendor": "bedrock",
+        "ingest_source": "PythonSDK",
+        "error_status": error.http_status,
+        "error_message": error.error.message,
+        "error_type": error.error.type,
+        "error_code": error.error.code,
+        "error_param": error.error.param,
+    }
+
+    monitor.record_event(completion, EventName)
 
 @handle_errors
 def handle_bedrock_create_completion(response, time_delta, **kwargs):
@@ -116,6 +132,7 @@ def handle_bedrock_create_completion(response, time_delta, **kwargs):
         monitor.record_event(transaction_begin_event, TransactionBeginEventName)
 
     except Exception as error:
+        build_completion_summary_for_error(error, **kwargs)
         raise error
 
 def build_bedrock_events(response, event_dict, time_delta):
