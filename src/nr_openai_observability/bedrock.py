@@ -63,6 +63,7 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
         with newrelic.agent.FunctionTrace(
             name="AI/Bedrock/Chat/Completions/Create", group="", terminal=True
         ):
+            monitor.record_library('botocore', 'Bedrock')
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
     except Exception as error:

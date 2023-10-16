@@ -1,6 +1,7 @@
 import inspect
 import logging
 import os
+import pkg_resources
 import sys
 import time
 import uuid
@@ -129,6 +130,21 @@ class OpenAIMonitoring:
                 logger.warning(f"Failed to run metadata callback: {ex}")
         newrelic.agent.record_custom_event(table, event_dict)
 
+    def record_library(
+            self,
+            lib_name,
+            alias = None,
+    ):
+        try:
+            dist = pkg_resources.get_distribution(lib_name)
+
+            if dist:
+                name = alias or lib_name
+                name = f'Python/ML/{name}/{dist.version}'
+                newrelic.agent.record_custom_metric(name, 1)
+        except Exception:
+            pass
+
 
 def patcher_convert_to_openai_object(original_fn, *args, **kwargs):
     response = original_fn(*args, **kwargs)
@@ -150,6 +166,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
         with newrelic.agent.FunctionTrace(
             name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
         ):
+            monitor.record_library('openai', 'OpenAI')
             handle_start_completion(kwargs)
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
@@ -171,6 +188,7 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
         with newrelic.agent.FunctionTrace(
             name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
         ):
+            monitor.record_library('openai', 'OpenAI')
             handle_start_completion(kwargs)
             result = await original_fn(*args, **kwargs)
 

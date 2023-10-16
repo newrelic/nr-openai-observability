@@ -28,6 +28,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self.langchain_callback_metadata = langchain_callback_metadata
         self.tool_invocation_counter = 0
         self.trace_stacks = {}
+        self.new_relic_monitor.record_library('langchain', 'LangChain')
+
 
     def get_and_update_tool_invocation_counter(self):
         self.tool_invocation_counter += 1
@@ -147,6 +149,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> Any:
         """Run when tool starts running."""
+        # we don't know if the tool is actually for Pinecone, but this is a best guess if 
+        # the module is in scope.
+        self.new_relic_monitor.record_library('pinecone', 'Pinecone')
         tool_name = serialized.get("name")
         trace = newrelic.agent.FunctionTrace(
             name=f"AI/LangChain/Tool/{tool_name}", terminal=False
