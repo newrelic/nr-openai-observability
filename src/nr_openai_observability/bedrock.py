@@ -4,9 +4,9 @@ import logging
 import newrelic.agent
 import sys
 import time
-import traceback
 import uuid
 
+from anthropic import _tokenizers
 from datetime import datetime
 from nr_openai_observability.monitor import _patched_call, monitor, MessageEventName, SummaryEventName, TransactionBeginEventName
 from nr_openai_observability.error_handling_decorator import handle_errors
@@ -138,7 +138,7 @@ def build_bedrock_events(response, event_dict, time_delta):
         model = event_dict['modelId']
         vendor = 'bedrock'
         message_id = str(uuid.uuid4())
-        tokens = input_tokens
+        tokens = input_tokens or 0
 
         if tokens and response_tokens:
             tokens += response_tokens
@@ -206,11 +206,15 @@ def build_bedrock_events(response, event_dict, time_delta):
                     )
                 )
         elif 'claude' in model:
+            tokenizer = _tokenizers.sync_get_tokenizer()
+            encoded = tokenizer.encode(event_dict['completion'])
+            tokens += len(encoded)
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
                     message_id=message_id,
                     content=event_dict['completion'],
+                    tokens=len(encoded),
                     role='assistant',
                     sequence=len(messages),
                     stop_reason=event_dict['stop_reason'],
@@ -221,11 +225,16 @@ def build_bedrock_events(response, event_dict, time_delta):
             )
         elif 'ai21.j2' in model:
             for result in event_dict['completions']:
+                message_tokens = 0
+                if 'data' in result and 'tokens' in result['data']:
+                    message_tokens = len(result['data']['tokens'])
+
                 messages.append(
                     build_bedrock_result_message(
                         completion_id=completion_id,
                         message_id=message_id,
                         content=result['data']['text'],
+                        tokens=message_tokens,
                         role='assistant',
                         sequence=len(messages),
                         stop_reason=result['finishReason']['reason'],
@@ -340,13 +349,22 @@ def get_bedrock_info(event_dict):
             stop_reason = event_dict['stop_reason']
             default_temp = 0.5
             default_max_tokens = 200
+
+            tokenizer = _tokenizers.sync_get_tokenizer()
+            encoded = tokenizer.encode(input_message)
+            input_tokens = len(encoded)
         if 'ai21.j2' in model:
             input_message = event_dict['prompt.text']
+            input_tokens = len(event_dict['prompt.tokens'])
+            response_tokens = 0
             default_temp = 0.5
             default_max_tokens = 200
 
             for result in event_dict['completions']:
                 stop_reason = result['finishReason']['reason'] # keep the last one
+
+                if 'data' in result and 'tokens' in result['data']:
+                    response_tokens += len(result['data']['tokens'])
         if 'cohere.command' in model:
             input_message = event_dict['prompt']
             default_temp = 0.9

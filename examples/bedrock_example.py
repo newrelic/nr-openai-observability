@@ -43,14 +43,14 @@ def runTitan(bedrock_runtime):
     accept = "application/json"
     contentType = "application/json"
 
+    print(f'Test with AWS Titan model {modelId}')
     response = bedrock_runtime.invoke_model(
         body=body, modelId=modelId, accept=accept, contentType=contentType
     )
-    print(f"titan large response: {response}")
     response_body = json.loads(response.get("body").read())
-    print(f"titan large body: {response_body}")
 
     print(response_body.get("results")[0].get("outputText"))
+    print()
 
 
 @newrelic.agent.background_task()
@@ -71,14 +71,14 @@ def runAnthropic(bedrock_runtime):
     accept = "application/json"
     contentType = "application/json"
 
+    print(f'Test with Anthropic model {modelId}')
     response = bedrock_runtime.invoke_model(
         body=body, modelId=modelId, accept=accept, contentType=contentType
     )
-    print(f"claude response: {response}")
     response_body = json.loads(response.get("body").read())
-    print(f"claude body: {response_body}")
 
     print(response_body.get("completion"))
+    print()
 
 
 @newrelic.agent.background_task()
@@ -95,14 +95,14 @@ def runAi21(bedrock_runtime):
     accept = "application/json"
     contentType = "application/json"
 
+    print(f'Test with AI21 model {modelId}')
     response = bedrock_runtime.invoke_model(
         body=body, modelId=modelId, accept=accept, contentType=contentType
     )
-    print(f"jurassic response: {response}")
     response_body = json.loads(response.get("body").read())
-    print(f"jurassic body: {response_body}")
 
     print(response_body.get("completions")[0].get("data").get("text"))
+    print()
 
 
 @newrelic.agent.background_task()
@@ -118,14 +118,14 @@ def runCohere(bedrock_runtime):
     accept = "application/json"
     contentType = "application/json"
 
+    print(f'Test with Cohere model {modelId}')
     response = bedrock_runtime.invoke_model(
         body=body, modelId=modelId, accept=accept, contentType=contentType
     )
-    print(f"cohere command response: {response}")
     response_body = json.loads(response.get("body").read())
-    print(f"cohere command body: {response_body}")
 
     print(response_body.get("generations")[0].get("text"))
+    print()
 
 
 if __name__ == "__main__":
