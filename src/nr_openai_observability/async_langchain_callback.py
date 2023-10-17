@@ -1,14 +1,15 @@
+import json
 import logging
 from typing import Any, Dict, List, Union
 
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 
 from nr_openai_observability import monitor
 import newrelic.agent
 
 
-class NewRelicCallbackHandler(BaseCallbackHandler):
+class NewRelicAsyncCallbackHandler(AsyncCallbackHandler):
     def __init__(
         self,
         application_name: str,
@@ -30,7 +31,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self.tool_invocation_counter += 1
         return self.tool_invocation_counter
 
-    def on_llm_start(
+    async def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
         """Run when LLM starts running."""
@@ -42,7 +43,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self._start_segment(kwargs["run_id"], trace, tags)
 
     # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
-    def on_chat_model_start(
+    async def on_chat_model_start(
         self,
         serialized: Dict[str, Any],
         messages: List[List[BaseMessage]],
@@ -66,10 +67,10 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         )
         self._start_segment(kwargs["run_id"], trace, tags)
 
-    def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
+    async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
 
-    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
+    async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """Run when LLM ends running."""
 
         tags = {
@@ -88,14 +89,14 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             )
         self._finish_segment(kwargs["run_id"])
 
-    def on_llm_error(
+    async def on_llm_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when LLM errors."""
         tags = {"error": str(error)}
         self._finish_segment(kwargs["run_id"], tags)
 
-    def on_chain_start(
+    async def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
     ) -> Any:
         """Run when chain starts running."""
@@ -110,6 +111,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         trace = newrelic.agent.FunctionTrace(
             name="AI/LangChain/RunChain", terminal=False
         )
+        logging.warn(json.dumps(inputs))
         tags = {
             "input": inputs.get("input") or inputs.get("human_input") or "",
             "chat_history": chat_history,
@@ -119,7 +121,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         }
         self._start_segment(kwargs["run_id"], trace, tags)
 
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
+    async def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
         tags = {
             "outputs": outputs.get("output"),
@@ -128,14 +130,14 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         }
         self._finish_segment(kwargs["run_id"], tags)
 
-    def on_chain_error(
+    async def on_chain_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when chain errors."""
         tags = {"error": str(error)}
         self._finish_segment(kwargs["run_id"], tags)
 
-    def on_tool_start(
+    async def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> Any:
         """Run when tool starts running."""
@@ -150,7 +152,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         }
         self._start_segment(kwargs["run_id"], trace, tags)
 
-    def on_tool_end(self, output: str, **kwargs: Any) -> Any:
+    async def on_tool_end(self, output: str, **kwargs: Any) -> Any:
         """Run when tool ends running."""
         tags = {
             "tool_output": output,
@@ -158,7 +160,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         }
         self._finish_segment(kwargs["run_id"], tags)
 
-    def on_tool_error(
+    async def on_tool_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when tool errors."""
@@ -168,13 +170,13 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         newrelic.agent.notice_error()
         self._finish_segment(kwargs["run_id"], tags)
 
-    def on_text(self, text: str, **kwargs: Any) -> Any:
+    async def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
 
-    def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
+    async def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
         """Run on agent action."""
 
-    def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
+    async def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
         # self._finish_segment(kwargs["run_id"])
 
