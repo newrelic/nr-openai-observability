@@ -17,10 +17,7 @@ def initialization(
 ):
     monitor.start(
         application_name,
-        license_key,
         metadata,
-        event_client_host,
-        parent_span_id_callback,
         metadata_callback,
     )
     perform_patch()

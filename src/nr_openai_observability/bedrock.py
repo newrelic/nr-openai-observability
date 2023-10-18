@@ -8,7 +8,9 @@ import uuid
 
 from anthropic import _tokenizers
 from datetime import datetime
-from nr_openai_observability.monitor import _patched_call, monitor, EventName, MessageEventName, SummaryEventName, TransactionBeginEventName
+from nr_openai_observability.monitor import monitor
+from nr_openai_observability.patcher import _patched_call
+from nr_openai_observability.consts import EventName, MessageEventName, SummaryEventName, TransactionBeginEventName
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 
@@ -105,7 +107,7 @@ def build_completion_summary_for_error(error, **kwargs):
 
 @handle_errors
 def handle_bedrock_create_completion(response, time_delta, **kwargs):
-    from nr_openai_observability.monitor import flatten_dict
+    from nr_openai_observability.patcher import flatten_dict
     try:
         contents = response['body'].read()
         response_body = json.loads(contents)

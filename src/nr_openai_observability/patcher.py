@@ -5,15 +5,16 @@ import time
 import uuid
 from argparse import ArgumentError
 
+import newrelic.agent
 import openai
-from newrelic_telemetry_sdk import Span
 
 import nr_openai_observability.consts as consts
 from nr_openai_observability.build_events import (
-    build_completion_error_events,
-    build_completion_events,
+    build_completion_summary,
+    build_completion_summary_for_error,
     build_embedding_error_event,
     build_embedding_event,
+    build_messages_events,
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.openai_monitoring import monitor
@@ -76,20 +77,23 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
     )
 
     result, time_delta = None, None
-    span = monitor.create_span()
     try:
         timestamp = time.time()
-        result = original_fn(*args, **kwargs)
-        time_delta = time.time() - timestamp
+        with newrelic.agent.FunctionTrace(
+            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
+        ):
+            monitor.record_library('openai', 'OpenAI')
+            handle_start_completion(kwargs)
+            result = original_fn(*args, **kwargs)
+            time_delta = time.time() - timestamp
+            logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+            return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        span.finish()
-        handle_create_chat_completion(result, kwargs, ex, time_delta, span)
+        monitor.record_event(
+            build_completion_summary_for_error(kwargs, ex), consts.SummaryEventName
+        )
         raise ex
-    span.finish()
-
-    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
-
-    return handle_create_chat_completion(result, kwargs, None, time_delta, span)
 
 
 async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
@@ -97,42 +101,77 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
     )
     result, time_delta = None, None
-    span = monitor.create_span()
     try:
         timestamp = time.time()
-        result = await original_fn(*args, **kwargs)
-        time_delta = time.time() - timestamp
+        with newrelic.agent.FunctionTrace(
+            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
+        ):
+            monitor.record_library('openai', 'OpenAI')
+            handle_start_completion(kwargs)
+            result = await original_fn(*args, **kwargs)
+
+            time_delta = time.time() - timestamp
+            logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
+
+            return handle_finish_chat_completion(result, kwargs, time_delta)
     except Exception as ex:
-        span.finish()
-        handle_create_chat_completion(result, kwargs, ex, time_delta, span)
+        monitor.record_event(
+            build_completion_summary_for_error(kwargs, ex), consts.SummaryEventName
+        )
         raise ex
-    span.finish()
-
-    logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
-
-    return handle_create_chat_completion(result, kwargs, None, time_delta, span)
 
 
 @handle_errors
-def handle_create_chat_completion(
-    response, request, error, response_time, span: Span = None
-):
-    events = None
-    if error:
-        events = build_completion_error_events(request, error)
-    else:
-        events = build_completion_events(
-            response, request, getattr(response, "_nr_response_headers"), response_time
-        )
-        delattr(response, "_nr_response_headers")
+def handle_start_completion(request):
+    transaction = newrelic.agent.current_transaction()
+    if transaction and getattr(transaction, "_traceHasHadCompletions", None) == None:
+        transaction._traceHasHadCompletions = True
+        messages = request.get("messages", [])
+        human_message = next((m for m in messages if m["role"] == "user"), None)
+        if human_message:
+            monitor.record_event(
+                {
+                    "human_prompt": human_message["content"],
+                    "vendor": "openAI",
+                    "trace.id": transaction.trace_id,
+                    "ingest_source": "PythonAgentHybrid",
+                },
+                consts.TransactionBeginEventName,
+            )
 
-    for event in events["messages"]:
+    # completion_id = newrelic.agent.current_trace_id()
+    message_events = build_messages_events(
+        request.get("messages", []),
+        request.get("model") or request.get("engine"),
+    )
+    for event in message_events:
         monitor.record_event(event, consts.MessageEventName)
-    monitor.record_event(events["completion"], consts.SummaryEventName)
-    if span:
-        span["attributes"].update(events["completion"])
-        span["attributes"]["name"] = consts.SummaryEventName
-        monitor.record_span(span)
+
+
+@handle_errors
+def handle_finish_chat_completion(response, request, response_time):
+    initial_messages = request.get("messages", [])
+    final_message = response.choices[0].message
+
+    completion = build_completion_summary(
+        response,
+        request,
+        getattr(response, "_nr_response_headers"),
+        response_time,
+        final_message,
+    )
+    delattr(response, "_nr_response_headers")
+
+    response_message = build_messages_events(
+        [final_message],
+        response.model,
+        {"is_final_response": True},
+        len(initial_messages),
+    )[0]
+
+    monitor.record_event(response_message, consts.MessageEventName)
+
+    monitor.record_event(completion, consts.SummaryEventName)
 
     return response
 
@@ -228,19 +267,6 @@ def patcher_create_completion(original_fn, *args, **kwargs):
 
 @handle_errors
 def handle_create_completion(response, time_delta, **kwargs):
-    def flatten_dict(dd, separator=".", prefix="", index=""):
-        if len(index):
-            index = index + separator
-        return (
-            {
-                prefix + separator + index + k if prefix else k: v
-                for kk, vv in dd.items()
-                for k, v in flatten_dict(vv, separator, kk).items()
-            }
-            if isinstance(dd, dict)
-            else {prefix: dd}
-        )
-
     choices_payload = {}
     for i, choice in enumerate(response.get("choices")):
         choices_payload.update(flatten_dict(choice, prefix="choices", index=str(i)))
@@ -264,6 +290,20 @@ def handle_create_completion(response, time_delta, **kwargs):
     return response
 
 
+def flatten_dict(dd, separator=".", prefix="", index=""):
+    if len(index):
+        index = index + separator
+    return (
+        {
+            prefix + separator + index + k if prefix else k: v
+            for kk, vv in dd.items()
+            for k, v in flatten_dict(vv, separator, kk).items()
+        }
+        if isinstance(dd, dict)
+        else {prefix: dd}
+    )
+
+
 def patcher_create_embedding(original_fn, *args, **kwargs):
     logger.debug(
         f"Running the original function: '{original_fn.__qualname__}'. args:{args}; kwargs: {kwargs}"
@@ -271,9 +311,12 @@ def patcher_create_embedding(original_fn, *args, **kwargs):
 
     result, time_delta = None, None
     try:
-        timestamp = time.time()
-        result = original_fn(*args, **kwargs)
-        time_delta = time.time() - timestamp
+        with newrelic.agent.FunctionTrace(
+            name="AI/OpenAI/Embeddings/Create", group="", terminal=True
+        ):
+            timestamp = time.time()
+            result = original_fn(*args, **kwargs)
+            time_delta = time.time() - timestamp
     except Exception as ex:
         handle_create_embedding(result, kwargs, ex, time_delta)
         raise ex
