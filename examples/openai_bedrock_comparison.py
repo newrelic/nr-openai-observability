@@ -21,10 +21,10 @@ import sys
 # SDK itself, leave these lines commented out.
 # 
 # Add vendor directory to module search path
-parent_dir = os.path.abspath(os.path.dirname(__file__))
-vendor_dir = os.path.join(parent_dir, '../src')
+# parent_dir = os.path.abspath(os.path.dirname(__file__))
+# vendor_dir = os.path.join(parent_dir, '../src')
 
-sys.path.append(vendor_dir)
+# sys.path.append(vendor_dir)
 # End adding SDK
 
 

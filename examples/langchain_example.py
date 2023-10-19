@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 import boto3
 import newrelic.agent
+import pinecone
 from langchain.agents import AgentType, initialize_agent
 from langchain.chat_models import ChatOpenAI, BedrockChat
 from langchain.llms import Bedrock
@@ -13,12 +14,12 @@ from langchain.tools import Tool
 # SDK itself, leave these lines commented out.
 #
 # Add vendor directory to module search path
-import os
-import sys
-parent_dir = os.path.abspath(os.path.dirname(__file__))
-vendor_dir = os.path.join(parent_dir, '../src')
+# import os
+# import sys
+# parent_dir = os.path.abspath(os.path.dirname(__file__))
+# vendor_dir = os.path.join(parent_dir, '../src')
 
-sys.path.append(vendor_dir)
+# sys.path.append(vendor_dir)
 # End adding SDK
 
 from nr_openai_observability.langchain_callback import NewRelicCallbackHandler
