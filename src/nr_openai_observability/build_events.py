@@ -186,39 +186,6 @@ def build_completion_summary(
     return completion
 
 
-# TODO Used any more?
-def build_completion_events(response, request, response_headers, response_time):
-    completion_id = str(uuid.uuid4())
-
-    completion = {
-        "id": completion_id,
-        "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
-        "response_time": int(response_time * 1000),
-        "request.model": request.get("model") or request.get("engine"),
-        "response.model": response.model,
-        "usage.completion_tokens": response.usage.completion_tokens,
-        "usage.total_tokens": response.usage.total_tokens,
-        "usage.prompt_tokens": response.usage.prompt_tokens,
-        "temperature": request.get("temperature"),
-        "max_tokens": request.get("max_tokens"),
-        "finish_reason": response.choices[0].finish_reason,
-        "api_type": response.api_type,
-        "vendor": "openAI",
-        "ingest_source": "PythonSDK",
-        "number_of_messages": len(request.get("messages", [])) + len(response.choices),
-        "organization": response.organization,
-        "api_version": response_headers.get("openai-version"),
-        # "trace.id": trace_id,
-        # "transactionId": transaction_id,
-        # "response": (final_message.get("content") or "")[:4095],
-        "stream": False,
-    }
-
-    completion.update(_get_rate_limit_data(response_headers))
-
-    return completion
-
-
 def build_completion_summary_for_error(request, error, isStream=False):
     completion_id = str(uuid.uuid4())
 

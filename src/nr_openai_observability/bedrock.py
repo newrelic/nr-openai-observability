@@ -96,6 +96,7 @@ def build_completion_summary_for_error(error, **kwargs):
         "id": str(uuid.uuid4()),
         "vendor": "bedrock",
         "ingest_source": "PythonSDK",
+        "timestamp": datetime.now(),
         "error_status": error.http_status,
         "error_message": error.error.message,
         "error_type": error.error.type,
@@ -192,7 +193,6 @@ def build_bedrock_events(response, event_dict, time_delta):
         )
 
         if 'titan' in model:
-            # handle 1 or more response messages
             if isinstance(event_dict['results'], list):
                 for result in event_dict['results']:
                     messages.append(
