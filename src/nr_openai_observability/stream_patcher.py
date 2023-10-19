@@ -22,8 +22,11 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
         try:
             timestamp = time.time()
             with newrelic.agent.FunctionTrace(
-                name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-            ):
+                name="AI/OpenAI/Chat/Completions/Create",
+                group="",
+                terminal=True,
+            ) as trace:
+                trace.add_custom_attribute("completion_id", completion_id)
                 handle_start_completion(kwargs, completion_id)
                 for chunk in stream_gen:
                     content += chunk.choices[0].delta.get("content", "")
@@ -64,8 +67,11 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
         try:
             timestamp = time.time()
             with newrelic.agent.FunctionTrace(
-                name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-            ):
+                name="AI/OpenAI/Chat/Completions/Create",
+                group="",
+                terminal=True,
+            ) as trace:
+                trace.add_custom_attribute("completion_id", completion_id)
                 handle_start_completion(kwargs, completion_id)
                 async for chunk in await stream_gen:
                     content += chunk.choices[0].delta.get("content", "")

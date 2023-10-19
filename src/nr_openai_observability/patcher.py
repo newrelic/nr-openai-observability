@@ -82,8 +82,11 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
         completion_id = str(uuid.uuid4())
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
-            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-        ):
+            name="AI/OpenAI/Chat/Completions/Create",
+            group="",
+            terminal=True,
+        ) as trace:
+            trace.add_custom_attribute("completion_id", completion_id)
             handle_start_completion(kwargs, completion_id)
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
@@ -109,8 +112,11 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
         completion_id = str(uuid.uuid4())
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
-            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-        ):
+            name="AI/OpenAI/Chat/Completions/Create",
+            group="",
+            terminal=True,
+        ) as trace:
+            trace.add_custom_attribute("completion_id", completion_id)
             handle_start_completion(kwargs, completion_id)
             result = await original_fn(*args, **kwargs)
 
