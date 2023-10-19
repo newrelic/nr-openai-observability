@@ -64,7 +64,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         trace = newrelic.agent.FunctionTrace(
             name="AI/LangChain/RunChatModel", terminal=False
         )
-        self._start_segment(kwargs["run_id"], trace)
+        self._start_segment(kwargs["run_id"], trace, tags)
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
