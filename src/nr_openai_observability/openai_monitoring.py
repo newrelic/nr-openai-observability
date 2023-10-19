@@ -73,7 +73,7 @@ class OpenAIMonitoring:
                     event_dict.update(metadata)
             except Exception as ex:
                 logger.warning(f"Failed to run metadata callback: {ex}")
-        newrelic.agent.record_custom_event(table, event_dict, self.application)
+        newrelic.agent.record_ml_event(table, event_dict, self.application)
 
     def record_library(
             self,

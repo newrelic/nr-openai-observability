@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
 
     # Enable New Relic Python agent
-    newrelic.agent.initialize()
+    newrelic.agent.initialize('newrelic.ini')
     newrelic.agent.register_application(name=app_name, timeout=10)
 
     prompt = "What is 2 + 2?"
