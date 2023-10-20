@@ -24,7 +24,7 @@ def perform_patch_bedrock():
             botocore.client.ClientCreator.create_client, patcher_aws_create_api
         )
     except AttributeError as error:
-        logger.error(f'failed to instrument botocore.client.ClientCreator.create_client: {error}')
+        logger.debug(f'failed to instrument botocore.client.ClientCreator.create_client: {error}')
 
 
 def patcher_aws_create_api(original_fn, *args, **kwargs):
