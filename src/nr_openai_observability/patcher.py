@@ -15,6 +15,7 @@ from nr_openai_observability.build_events import (
     build_embedding_error_event,
     build_embedding_event,
     build_messages_events,
+    get_trace_details,
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.openai_monitoring import monitor
@@ -78,19 +79,26 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
 
     result, time_delta = None, None
     try:
+        completion_id = str(uuid.uuid4())
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
-            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-        ):
-            handle_start_completion(kwargs)
+            name="AI/OpenAI/Chat/Completions/Create",
+            group="",
+            terminal=True,
+        ) as trace:
+            trace.add_custom_attribute("completion_id", completion_id)
+            handle_start_completion(kwargs, completion_id)
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
             logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-            return handle_finish_chat_completion(result, kwargs, time_delta)
+            return handle_finish_chat_completion(
+                result, kwargs, time_delta, completion_id
+            )
     except Exception as ex:
         monitor.record_event(
-            build_completion_summary_for_error(kwargs, ex), consts.SummaryEventName
+            build_completion_summary_for_error(kwargs, ex, completion_id),
+            consts.SummaryEventName,
         )
         raise ex
 
@@ -101,26 +109,33 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
     )
     result, time_delta = None, None
     try:
+        completion_id = str(uuid.uuid4())
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
-            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-        ):
-            handle_start_completion(kwargs)
+            name="AI/OpenAI/Chat/Completions/Create",
+            group="",
+            terminal=True,
+        ) as trace:
+            trace.add_custom_attribute("completion_id", completion_id)
+            handle_start_completion(kwargs, completion_id)
             result = await original_fn(*args, **kwargs)
 
             time_delta = time.time() - timestamp
             logger.debug(f"Finished running function: '{original_fn.__qualname__}'.")
 
-            return handle_finish_chat_completion(result, kwargs, time_delta)
+            return handle_finish_chat_completion(
+                result, kwargs, time_delta, completion_id
+            )
     except Exception as ex:
         monitor.record_event(
-            build_completion_summary_for_error(kwargs, ex), consts.SummaryEventName
+            build_completion_summary_for_error(kwargs, ex, completion_id),
+            consts.SummaryEventName,
         )
         raise ex
 
 
 @handle_errors
-def handle_start_completion(request):
+def handle_start_completion(request, completion_id):
     transaction = newrelic.agent.current_transaction()
     if transaction and getattr(transaction, "_traceHasHadCompletions", None) == None:
         transaction._traceHasHadCompletions = True
@@ -131,23 +146,23 @@ def handle_start_completion(request):
                 {
                     "human_prompt": human_message["content"],
                     "vendor": "openAI",
-                    "trace.id": transaction.trace_id,
                     "ingest_source": "PythonAgentHybrid",
+                    **get_trace_details(),
                 },
                 consts.TransactionBeginEventName,
             )
 
-    # completion_id = newrelic.agent.current_trace_id()
     message_events = build_messages_events(
         request.get("messages", []),
         request.get("model") or request.get("engine"),
+        completion_id,
     )
     for event in message_events:
         monitor.record_event(event, consts.MessageEventName)
 
 
 @handle_errors
-def handle_finish_chat_completion(response, request, response_time):
+def handle_finish_chat_completion(response, request, response_time, completion_id):
     initial_messages = request.get("messages", [])
     final_message = response.choices[0].message
 
@@ -157,12 +172,14 @@ def handle_finish_chat_completion(response, request, response_time):
         getattr(response, "_nr_response_headers"),
         response_time,
         final_message,
+        completion_id,
     )
     delattr(response, "_nr_response_headers")
 
     response_message = build_messages_events(
         [final_message],
         response.model,
+        completion_id,
         {"is_final_response": True},
         len(initial_messages),
     )[0]
