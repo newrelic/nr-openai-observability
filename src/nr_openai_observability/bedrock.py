@@ -6,7 +6,6 @@ import sys
 import time
 import uuid
 
-from anthropic import _tokenizers
 from datetime import datetime
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
@@ -240,6 +239,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                     )
                 )
         elif 'claude' in model:
+            from anthropic import _tokenizers
             tokenizer = _tokenizers.sync_get_tokenizer()
             encoded = tokenizer.encode(event_dict['completion'])
             tokens += len(encoded)
@@ -379,6 +379,8 @@ def get_bedrock_info(event_dict):
             input_message = event_dict['body']['inputText']
             input_tokens = event_dict['inputTextTokenCount']
         if 'claude' in model:
+            from anthropic import _tokenizers
+
             input_message = event_dict['body']['prompt']
             stop_reason = event_dict['stop_reason']
             default_temp = 0.5
