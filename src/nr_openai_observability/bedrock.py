@@ -19,6 +19,20 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.INFO)
 
 def perform_patch_bedrock():
+    from newrelic.common.package_version_utils import get_package_version_tuple
+
+    (major, minor, revision) = get_package_version_tuple('botocore')
+
+    if major != 1 and minor < 31 and revision < 57:
+        logger.warning(f'minimum version of botocore that supports Bedrock is 1.31.57')
+        return
+
+    (major, minor, revision) = get_package_version_tuple('boto3')
+
+    if major != 1 and minor < 28 and revision < 57:
+        logger.warning('minimum version of boto3 that supports Bedrock is 1.28.57')
+        return
+
     try:
         botocore.client.ClientCreator.create_client = _patched_call(
             botocore.client.ClientCreator.create_client, patcher_aws_create_api
