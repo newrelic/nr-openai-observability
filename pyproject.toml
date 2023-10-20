@@ -10,7 +10,7 @@ keywords = ["newrelic", "observability", "openai", "gpt", "chatGPT", "GPT-4", "m
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
-newrelic = { git = "git@github.com:newrelic/newrelic-python-agent.git", branch = "add-ml-event-truncation" }
+newrelic = { git = "git@github.com:newrelic/newrelic-python-agent.git", branch = "develop-openai-instrumentation" }
 openai = ">=0.8,<0.30"
 botocore = ">=1.31.57"
 boto3 = ">=1.28.57"
@@ -24,7 +24,7 @@ pytest = "^7.2.1"
 [tool.poetry.group.dev.dependencies]
 langchain = "^0.0.248"
 chromadb = "^0.4.8"
-tiktoken = "^0.4.0"
+tiktoken = "^0.5.1"
 
 [build-system]
 requires = ["poetry-core>=1.1.0"]
