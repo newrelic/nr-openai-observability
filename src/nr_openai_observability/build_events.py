@@ -9,22 +9,19 @@ import tiktoken
 logger = logging.getLogger("nr_openai_observability")
 
 
-def build_messages_events(messages, model, tags={}, start_seq_num=0):
-    completion_id = newrelic.agent.current_span_id()
-    trace_id = newrelic.agent.current_trace_id()
-
+def build_messages_events(messages, model, completion_id, tags={}, start_seq_num=0):
     events = []
     for index, message in enumerate(messages):
         currMessage = {
             "id": str(uuid.uuid4()),
+            "completion_id": completion_id,
             "content": (message.get("content") or "")[:4095],
             "role": message.get("role"),
-            "completion_id": completion_id,
-            "trace.id": trace_id,
             "sequence": index + start_seq_num,
             "model": model,
             "vendor": "openAI",
             "ingest_source": "PythonSDK",
+            **get_trace_details(),
         }
         currMessage.update(tags)
 
@@ -95,16 +92,8 @@ def calc_prompt_tokens(model, messages):
 
 
 def build_stream_completion_events(
-    last_chunk, request, response_headers, message, response_time
+    last_chunk, request, response_headers, message, response_time, completion_id
 ):
-    completion_id = newrelic.agent.current_span_id()
-    trace_id = newrelic.agent.current_trace_id()
-    transaction_id = (
-        newrelic.agent.current_transaction().guid
-        if newrelic.agent.current_transaction() != None
-        else None
-    )
-
     request_messages = request.get("messages", [])
 
     prompt_tokens = calc_prompt_tokens(last_chunk.model, request_messages)
@@ -135,10 +124,9 @@ def build_stream_completion_events(
         "number_of_messages": len(request.get("messages", [])) + 1,
         "organization": last_chunk.organization,
         "api_version": response_headers.get("openai-version"),
-        "trace.id": trace_id,
-        "transactionId": transaction_id,
         "response": (message.get("content") or "")[:4095],
         "stream": True,
+        **get_trace_details(),
     }
 
     completion.update(_get_rate_limit_data(response_headers))
@@ -147,16 +135,8 @@ def build_stream_completion_events(
 
 
 def build_completion_summary(
-    response, request, response_headers, response_time, final_message
+    response, request, response_headers, response_time, final_message, completion_id
 ):
-    completion_id = newrelic.agent.current_span_id()
-    trace_id = newrelic.agent.current_trace_id()
-    transaction_id = (
-        newrelic.agent.current_transaction().guid
-        if newrelic.agent.current_transaction() != None
-        else None
-    )
-
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
@@ -175,10 +155,9 @@ def build_completion_summary(
         "number_of_messages": len(request.get("messages", [])) + len(response.choices),
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
-        "trace.id": trace_id,
-        "transactionId": transaction_id,
         "response": (final_message.get("content") or "")[:4095],
         "stream": False,
+        **get_trace_details(),
     }
 
     completion.update(_get_rate_limit_data(response_headers))
@@ -186,9 +165,7 @@ def build_completion_summary(
     return completion
 
 
-def build_completion_summary_for_error(request, error, isStream=False):
-    completion_id = str(uuid.uuid4())
-
+def build_completion_summary_for_error(request, error, completion_id, isStream=False):
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
@@ -205,6 +182,7 @@ def build_completion_summary_for_error(request, error, isStream=False):
         "error_code": error.error.code,
         "error_param": error.error.param,
         "stream": isStream,
+        **get_trace_details(),
     }
 
     return completion
@@ -228,6 +206,7 @@ def build_embedding_event(response, request, response_headers, response_time):
         "ingest_source": "PythonSDK",
         "organization": response.organization,
         "api_version": response_headers.get("openai-version"),
+        **get_trace_details(),
     }
 
     embedding.update(_get_rate_limit_data(response_headers))
@@ -250,6 +229,24 @@ def build_embedding_error_event(request, error):
         "error_type": error.error.type,
         "error_code": error.error.code,
         "error_param": error.error.param,
+        **get_trace_details(),
     }
 
     return embedding
+
+
+def get_trace_details():
+    span_id = newrelic.agent.current_span_id()
+    trace_id = newrelic.agent.current_trace_id()
+    transaction_id = (
+        newrelic.agent.current_transaction().guid
+        if newrelic.agent.current_transaction() != None
+        else None
+    )
+    return {
+        "span_id": span_id,
+        "trace_id": trace_id,
+        "trace.id": trace_id,  # Legacy value from SDK
+        "transaction_id": transaction_id,
+        "transactionId": transaction_id,  # Legacy value from SDK
+    }
