@@ -19,9 +19,17 @@ pytest = "^7.2.1"
 
 
 [tool.poetry.group.dev.dependencies]
-langchain = "^0.0.248"
+langchain = "^0.0.300"
 chromadb = "^0.4.8"
-tiktoken = "^0.4.0"
+tiktoken = "^0.5.1"
+
+[tool.poetry.group.bedrock]
+optional = true
+
+[tool.poetry.group.bedrock.dependencies]
+botocore = ">=1.31.57"
+boto3 = ">=1.28.57"
+anthropic = ">= 0.3.10"
 
 [build-system]
 requires = ["poetry-core>=1.1.0"]

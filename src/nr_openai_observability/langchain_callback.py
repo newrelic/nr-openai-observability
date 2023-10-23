@@ -1,10 +1,11 @@
-import logging
+import re
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 
 from nr_openai_observability import monitor
+from nr_openai_observability.consts import CompletionEventName, ChainEventName, ToolEventName
 import newrelic.agent
 
 
@@ -25,6 +26,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self.langchain_callback_metadata = langchain_callback_metadata
         self.tool_invocation_counter = 0
         self.trace_stacks = {}
+        self.new_relic_monitor.record_library('langchain', 'LangChain')
+
 
     def get_and_update_tool_invocation_counter(self):
         self.tool_invocation_counter += 1
@@ -34,12 +37,15 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
         """Run when LLM starts running."""
+        model = self._get_model(serialized, **kwargs)
+
         tags = {
             "messages": "\n".join(prompts),
-            "model_name": kwargs.get("invocation_params", {}).get("_type", ""),
+            "model_name": model,
         }
         trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
         self._start_segment(kwargs["run_id"], trace, tags)
+
 
     # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
     def on_chat_model_start(
@@ -50,10 +56,12 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> Any:
         """Run when Chat Model starts running."""
         invocation_params = kwargs.get("invocation_params", {})
+        model = self._get_model(serialized, **kwargs)
+
         tags = {
             "messages": "\n".join([f"{x.type}: {x.content}" for x in messages[0]]),
-            "model": invocation_params.get("model"),
-            "model_name": invocation_params.get("model_name"),
+            "model": model,
+            "model_name": invocation_params.get("model_name") or model,
             "temperature": invocation_params.get("temperature"),
             "request_timeout": invocation_params.get("request_timeout"),
             "max_tokens": invocation_params.get("max_tokens"),
@@ -86,14 +94,14 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                     "total_tokens": token_usage.get("total_tokens", None),
                 }
             )
-        self._finish_segment(kwargs["run_id"])
+        self._finish_segment(kwargs["run_id"], tags, CompletionEventName)
 
     def on_llm_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when LLM errors."""
         tags = {"error": str(error)}
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, CompletionEventName)
 
     def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
@@ -126,19 +134,22 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "run_id": str(kwargs.get("run_id")),
             "end_tags": str(kwargs.get("tags")),
         }
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ChainEventName)
 
     def on_chain_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
     ) -> Any:
         """Run when chain errors."""
         tags = {"error": str(error)}
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ChainEventName)
 
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> Any:
         """Run when tool starts running."""
+        # we don't know if the tool is actually for Pinecone, but this is a best guess if 
+        # the module is in scope.
+        self.new_relic_monitor.record_library('pinecone-client', 'Pinecone')
         tool_name = serialized.get("name")
         trace = newrelic.agent.FunctionTrace(
             name=f"AI/LangChain/Tool/{tool_name}", terminal=False
@@ -156,7 +167,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "tool_output": output,
             "tool_invocation_counter": self.get_and_update_tool_invocation_counter(),
         }
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ToolEventName)
 
     def on_tool_error(
         self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
@@ -166,7 +177,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "error": str(error),
         }
         newrelic.agent.notice_error()
-        self._finish_segment(kwargs["run_id"], tags)
+        self._finish_segment(kwargs["run_id"], tags, ToolEventName)
 
     def on_text(self, text: str, **kwargs: Any) -> Any:
         """Run on arbitrary text."""
@@ -192,7 +203,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
         self.trace_stacks[run_id] = stack
 
-    def _finish_segment(self, run_id, tags={}):
+    def _finish_segment(self, run_id, tags={}, event_name=None):
         stack = self.trace_stacks.get(run_id, [])
         if stack != None and len(stack) != 0:
             trace = stack.pop()
@@ -205,4 +216,32 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
             trace.__exit__(None, None, None)
 
+            if event_name:
+                attrs = trace.user_attributes
+
+                if tags:
+                    attrs.update(tags)
+
+                attrs['trace.id'] = getattr(newrelic.agent.current_transaction(), "trace_id", None) or trace.guid
+                attrs['guid'] = trace.guid
+                attrs['parent.id'] = None
+                attrs['duration.ms'] = trace.duration * 1000
+
+                self.new_relic_monitor.record_event(attrs, event_name)
+
             return trace
+
+    def _get_model(self, serialized: Dict[str, Any], **kwargs: Any) -> str:
+        invocation_params = kwargs.get("invocation_params", {})
+        model = invocation_params.get("model")
+        if not model:
+            model = invocation_params.get("model_id")
+        if not model:
+            if 'repr' in serialized:
+                match = re.match(".*model_id='([^']+)'.*", serialized['repr'])
+                if match:
+                    model = match.group(1)
+        if not model:
+            model = invocation_params.get("_type", "")
+
+        return model

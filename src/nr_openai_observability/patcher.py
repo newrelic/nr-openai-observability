@@ -87,6 +87,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
             terminal=True,
         ) as trace:
             trace.add_custom_attribute("completion_id", completion_id)
+            monitor.record_library('openai', 'OpenAI')
             handle_start_completion(kwargs, completion_id)
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
@@ -112,11 +113,9 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
         completion_id = str(uuid.uuid4())
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
-            name="AI/OpenAI/Chat/Completions/Create",
-            group="",
-            terminal=True,
-        ) as trace:
-            trace.add_custom_attribute("completion_id", completion_id)
+            name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
+        ):
+            monitor.record_library('openai', 'OpenAI')
             handle_start_completion(kwargs, completion_id)
             result = await original_fn(*args, **kwargs)
 
@@ -282,19 +281,6 @@ def patcher_create_completion(original_fn, *args, **kwargs):
 
 @handle_errors
 def handle_create_completion(response, time_delta, **kwargs):
-    def flatten_dict(dd, separator=".", prefix="", index=""):
-        if len(index):
-            index = index + separator
-        return (
-            {
-                prefix + separator + index + k if prefix else k: v
-                for kk, vv in dd.items()
-                for k, v in flatten_dict(vv, separator, kk).items()
-            }
-            if isinstance(dd, dict)
-            else {prefix: dd}
-        )
-
     choices_payload = {}
     for i, choice in enumerate(response.get("choices")):
         choices_payload.update(flatten_dict(choice, prefix="choices", index=str(i)))
@@ -316,6 +302,20 @@ def handle_create_completion(response, time_delta, **kwargs):
     monitor.record_event(event_dict)
 
     return response
+
+
+def flatten_dict(dd, separator=".", prefix="", index=""):
+    if len(index):
+        index = index + separator
+    return (
+        {
+            prefix + separator + index + k if prefix else k: v
+            for kk, vv in dd.items()
+            for k, v in flatten_dict(vv, separator, kk).items()
+        }
+        if isinstance(dd, dict)
+        else {prefix: dd}
+    )
 
 
 def patcher_create_embedding(original_fn, *args, **kwargs):
@@ -461,6 +461,9 @@ def perform_patch():
         )
     except AttributeError:
         pass
+
+    from nr_openai_observability.bedrock import perform_patch_bedrock
+    perform_patch_bedrock()
 
     if "langchain" in sys.modules:
         perform_patch_langchain_vectorstores()
