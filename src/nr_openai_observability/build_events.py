@@ -36,13 +36,32 @@ def _get_rate_limit_data(response_headers):
         return int(header) if header and header.isdigit() else None
 
     return {
-        "ratelimit_limit_requests": _get_numeric_header("ratelimit_limit_requests"),
-        "ratelimit_limit_tokens": _get_numeric_header("ratelimit_limit_tokens"),
-        "ratelimit_reset_tokens": response_headers.get("x-ratelimit-reset-tokens"),
-        "ratelimit_reset_requests": response_headers.get("x-ratelimit-reset-requests"),
-        "ratelimit_remaining_tokens": _get_numeric_header("ratelimit_remaining_tokens"),
-        "ratelimit_remaining_requests": _get_numeric_header(
-            "ratelimit_remaining_requests"
+        **compat_fields(
+            ["ratelimit_limit_requests", "response.headers.ratelimitLimitRequests"],
+            _get_numeric_header("ratelimit_limit_requests"),
+        ),
+        **compat_fields(
+            ["ratelimit_limit_tokens", "response.headers.ratelimitLimitTokens"],
+            _get_numeric_header("ratelimit_limit_tokens"),
+        ),
+        **compat_fields(
+            ["ratelimit_reset_tokens", "response.headers.ratelimitResetTokens"],
+            response_headers.get("x-ratelimit-reset-tokens"),
+        ),
+        **compat_fields(
+            ["ratelimit_reset_requests", "response.headers.ratelimitResetRequests"],
+            response_headers.get("x-ratelimit-reset-requests"),
+        )
+        ** compat_fields(
+            ["ratelimit_remaining_tokens", "response.headers.ratelimitRemainingTokens"],
+            _get_numeric_header("ratelimit_remaining_tokens"),
+        ),
+        **compat_fields(
+            [
+                "ratelimit_remaining_requests",
+                "response.headers.ratelimitRemainingRequests",
+            ],
+            _get_numeric_header("ratelimit_remaining_requests"),
         ),
     }
 
@@ -193,19 +212,35 @@ def build_embedding_event(response, request, response_headers, response_time):
 
     embedding = {
         "id": embedding_id,
+        "request_id": response_headers.get("x-request-id", ""),
         "input": request.get("input")[:4095],
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "timestamp": datetime.now(),
-        "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
-        "usage.total_tokens": response.usage.total_tokens,
-        "usage.prompt_tokens": response.usage.prompt_tokens,
-        "api_type": response.api_type,
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        "organization": response.organization,
-        "api_version": response_headers.get("openai-version"),
+        **compat_fields(["response_time", "duration"], int(response_time * 1000)),
+        **compat_fields(
+            ["usage.total_tokens", "response.usage.total_tokens"],
+            response.usage.total_tokens,
+        ),
+        **compat_fields(
+            ["usage.prompt_tokens", "response.usage.prompt_tokens"],
+            response.usage.prompt_tokens,
+        ),
+        **compat_fields(
+            ["response.api_version", "response.headers.llmVersion"],
+            response_headers.get("openai-version"),
+        ),
+        **compat_fields(["api_type", "response.api_type"], response.api_type),
+        **compat_fields(
+            ["api_version", "response.api_version"],
+            response_headers.get("openai-version"),
+        ),
+        **compat_fields(
+            ["organization", "response.organization"], response.organization
+        ),
         **get_trace_details(),
     }
 
@@ -250,3 +285,7 @@ def get_trace_details():
         "transaction_id": transaction_id,
         "transactionId": transaction_id,  # Legacy value from SDK
     }
+
+
+def compat_fields(keys, value):
+    return dict.fromkeys(keys, value)
