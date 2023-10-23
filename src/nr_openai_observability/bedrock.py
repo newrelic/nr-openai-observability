@@ -6,11 +6,10 @@ import sys
 import time
 import uuid
 
-from anthropic import _tokenizers
 from datetime import datetime
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
-from nr_openai_observability.consts import EventName, MessageEventName, SummaryEventName, TransactionBeginEventName
+from nr_openai_observability.consts import MessageEventName, SummaryEventName, TransactionBeginEventName
 from nr_openai_observability.error_handling_decorator import handle_errors
 
 
@@ -19,12 +18,26 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.INFO)
 
 def perform_patch_bedrock():
+    from newrelic.common.package_version_utils import get_package_version_tuple
+
+    (major, minor, revision) = get_package_version_tuple('botocore')
+
+    if major < 1 or minor < 31 or (minor == 31 and revision < 57):
+        logger.warning(f'minimum version of botocore that supports Bedrock is 1.31.57')
+        return
+
+    (major, minor, revision) = get_package_version_tuple('boto3')
+
+    if major < 1 or minor < 28 or (minor == 28 and revision < 57):
+        logger.warning('minimum version of boto3 that supports Bedrock is 1.28.57')
+        return
+
     try:
         botocore.client.ClientCreator.create_client = _patched_call(
             botocore.client.ClientCreator.create_client, patcher_aws_create_api
         )
     except AttributeError as error:
-        logger.error(f'failed to instrument botocore.client.ClientCreator.create_client: {error}')
+        logger.debug(f'failed to instrument botocore.client.ClientCreator.create_client: {error}')
 
 
 def patcher_aws_create_api(original_fn, *args, **kwargs):
@@ -77,10 +90,8 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     from io import BytesIO
 
     contents = result['body'].read()
-    bio = BytesIO(contents)
-    result['body'] = StreamingBody(bio, len(contents))
 
-    handle_bedrock_create_completion(result, time_delta, **kwargs)
+    handle_bedrock_create_completion(result, contents, time_delta, **kwargs)
 
     # we have to reset the body after we read it. The handle function is going to read the contents,
     # and we'll have to apply the body again before returning back.
@@ -104,13 +115,12 @@ def build_completion_summary_for_error(error, **kwargs):
         "error_param": error.error.param,
     }
 
-    monitor.record_event(completion, EventName)
+    monitor.record_event(completion, SummaryEventName)
 
 @handle_errors
-def handle_bedrock_create_completion(response, time_delta, **kwargs):
+def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
     from nr_openai_observability.patcher import flatten_dict
     try:
-        contents = response['body'].read()
         response_body = json.loads(contents)
 
         event_dict = {
@@ -174,7 +184,6 @@ def build_bedrock_events(response, event_dict, time_delta):
             max_tokens = event_dict['body']['max_tokens_to_sample']
 
         if 'ResponseMetadata' in response and 'RequestId' in response['ResponseMetadata']:
-            # TODO Is this general to all Bedrock LLMs? Can we move it up?
             message_id = response['ResponseMetadata']['RequestId']
 
         # input message
@@ -226,6 +235,7 @@ def build_bedrock_events(response, event_dict, time_delta):
                     )
                 )
         elif 'claude' in model:
+            from anthropic import _tokenizers
             tokenizer = _tokenizers.sync_get_tokenizer()
             encoded = tokenizer.encode(event_dict['completion'])
             tokens += len(encoded)
@@ -365,6 +375,8 @@ def get_bedrock_info(event_dict):
             input_message = event_dict['body']['inputText']
             input_tokens = event_dict['inputTextTokenCount']
         if 'claude' in model:
+            from anthropic import _tokenizers
+
             input_message = event_dict['body']['prompt']
             stop_reason = event_dict['stop_reason']
             default_temp = 0.5

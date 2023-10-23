@@ -16,17 +16,6 @@ import sys
 #   OPENAI_API_KEY
 #   
 
-# When testing changes within the SDK, we need to load the changes from a local
-# directory. These lines allow for this. Unless you are testing changes to the
-# SDK itself, leave these lines commented out.
-# 
-# Add vendor directory to module search path
-# parent_dir = os.path.abspath(os.path.dirname(__file__))
-# vendor_dir = os.path.join(parent_dir, '../src')
-
-# sys.path.append(vendor_dir)
-# End adding SDK
-
 
 @newrelic.agent.background_task()
 @newrelic.agent.function_trace(name="openai")

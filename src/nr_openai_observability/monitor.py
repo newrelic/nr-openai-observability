@@ -9,10 +9,7 @@ logger = logging.getLogger("nr_openai_observability")
 
 def initialization(
     application_name: str,
-    license_key: Optional[str] = None,
     metadata: Dict[str, Any] = {},
-    event_client_host: Optional[str] = None,
-    parent_span_id_callback: Optional[Callable] = None,
     metadata_callback: Optional[Callable] = None,
 ):
     monitor.start(
