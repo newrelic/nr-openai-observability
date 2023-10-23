@@ -19,7 +19,7 @@ pytest = "^7.2.1"
 
 
 [tool.poetry.group.dev.dependencies]
-langchain = "^0.0.248"
+langchain = "^0.0.300"
 chromadb = "^0.4.8"
 tiktoken = "^0.5.1"
 

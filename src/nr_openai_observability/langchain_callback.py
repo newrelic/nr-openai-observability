@@ -5,11 +5,9 @@ from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 
 from nr_openai_observability import monitor
+from nr_openai_observability.consts import CompletionEventName, ChainEventName, ToolEventName
 import newrelic.agent
 
-CompletionEventName = "LlmCompletion"
-ChainEventName = "LlmChain"
-ToolEventName = "LlmTool"
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
