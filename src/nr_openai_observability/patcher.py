@@ -116,7 +116,7 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
             name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
         ):
             monitor.record_library('openai', 'OpenAI')
-            handle_start_completion(kwargs)
+            handle_start_completion(kwargs, completion_id)
             result = await original_fn(*args, **kwargs)
 
             time_delta = time.time() - timestamp
