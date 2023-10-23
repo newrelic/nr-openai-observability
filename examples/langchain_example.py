@@ -2,25 +2,12 @@ from typing import Any, Dict, List
 
 import boto3
 import newrelic.agent
+import os
 from langchain.agents import AgentType, initialize_agent
 from langchain.chat_models import ChatOpenAI, BedrockChat
 from langchain.llms import Bedrock
 from langchain.llms.base import LLM
 from langchain.tools import Tool
-
-# When testing changes within the SDK, we need to load the changes from a local
-# directory. These lines allow for this. Unless you are testing changes to the
-# SDK itself, leave these lines commented out.
-#
-# Add vendor directory to module search path
-# import os
-# import sys
-# parent_dir = os.path.abspath(os.path.dirname(__file__))
-# vendor_dir = os.path.join(parent_dir, '../src')
-
-# sys.path.append(vendor_dir)
-# End adding SDK
-
 from nr_openai_observability.langchain_callback import NewRelicCallbackHandler
 
 @newrelic.agent.background_task()
