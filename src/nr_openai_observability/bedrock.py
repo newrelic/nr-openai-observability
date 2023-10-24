@@ -24,14 +24,20 @@ logger.setLevel(logging.INFO)
 def perform_patch_bedrock():
     from newrelic.common.package_version_utils import get_package_version_tuple
 
-    (major, minor, revision) = get_package_version_tuple("botocore")
+    botocore_version = get_package_version_tuple("botocore")
+    if botocore_version == None:
+        return
 
+    (major, minor, revision) = botocore_version
     if major < 1 or minor < 31 or (minor == 31 and revision < 57):
         logger.warning(f"minimum version of botocore that supports Bedrock is 1.31.57")
         return
 
-    (major, minor, revision) = get_package_version_tuple("boto3")
+    boto3_version = get_package_version_tuple("boto3")
+    if boto3_version == None:
+        return
 
+    (major, minor, revision) = boto3_version
     if major < 1 or minor < 28 or (minor == 28 and revision < 57):
         logger.warning("minimum version of boto3 that supports Bedrock is 1.28.57")
         return
