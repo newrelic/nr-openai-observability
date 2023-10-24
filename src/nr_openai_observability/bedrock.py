@@ -6,6 +6,7 @@ import time
 import uuid
 
 from datetime import datetime
+from nr_openai_observability.build_events import get_trace_details
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
 from nr_openai_observability.consts import (
@@ -187,12 +188,6 @@ def build_bedrock_events(response, event_dict, time_delta):
     summary = {}
     messages = []
     model = "bedrock-unknown"
-    trace_id = newrelic.agent.current_trace_id()
-    transaction_id = (
-        newrelic.agent.current_transaction().guid
-        if newrelic.agent.current_transaction() != None
-        else None
-    )
 
     if "modelId" in event_dict:
         completion_id = newrelic.agent.current_span_id() or str(uuid.uuid4())
@@ -230,7 +225,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                 sequence=len(messages),
                 model=model,
                 vendor=vendor,
-                trace_id=trace_id,
             )
         )
 
@@ -248,7 +242,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                             stop_reason=result["completionReason"],
                             model=model,
                             vendor=vendor,
-                            trace_id=trace_id,
                         )
                     )
             else:  # TODO Is this actually a case? Or is it always a list?
@@ -264,7 +257,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                         stop_reason=result["completionReason"],
                         model=model,
                         vendor=vendor,
-                        trace_id=trace_id,
                     )
                 )
         elif "claude" in model:
@@ -284,7 +276,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                     stop_reason=event_dict["stop_reason"],
                     model=model,
                     vendor=vendor,
-                    trace_id=trace_id,
                 )
             )
         elif "ai21.j2" in model:
@@ -304,7 +295,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                         stop_reason=result["finishReason"]["reason"],
                         model=model,
                         vendor=vendor,
-                        trace_id=trace_id,
                     )
                 )
         elif "cohere.command" in model:
@@ -318,7 +308,6 @@ def build_bedrock_events(response, event_dict, time_delta):
                         sequence=len(messages),
                         model=model,
                         vendor=vendor,
-                        trace_id=trace_id,
                     )
                 )
 
@@ -336,10 +325,9 @@ def build_bedrock_events(response, event_dict, time_delta):
             "api_type": None,
             "vendor": vendor,
             "ingest_source": "PythonSDK",
-            "number_of_messages": len(messages),
-            "trace.id": trace_id,
-            "transactionId": transaction_id,
-            "response": messages[-1]["content"][:4095],
+            "number_of_messages": len(messages), 
+            "response": messages[-1]['content'][:4095],
+            **get_trace_details(),
         }
 
         if stop_reason:
@@ -356,8 +344,8 @@ def build_bedrock_events(response, event_dict, time_delta):
         transaction_begin_event = {
             "human_prompt": messages[0]["content"],
             "vendor": vendor,
-            "trace.id": trace_id,
             "ingest_source": "PythonAgentHybrid",
+            **get_trace_details(),
         }
 
     return (summary, messages, transaction_begin_event)
@@ -373,7 +361,6 @@ def build_bedrock_result_message(
     stop_reason=None,
     model=None,
     vendor=None,
-    trace_id=None,
 ):
     message = {
         "id": message_id,
@@ -384,14 +371,13 @@ def build_bedrock_result_message(
         "model": model,
         "vendor": vendor,
         "ingest_source": "PythonSDK",
+        **get_trace_details(),
     }
 
     if tokens:
         message["tokens"] = tokens
     if stop_reason:
         message["stop_reason"] = stop_reason
-    if trace_id:
-        message["trace.id"] = trace_id
 
     return message
 

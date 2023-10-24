@@ -10,7 +10,7 @@ keywords = ["newrelic", "observability", "openai", "gpt", "chatGPT", "GPT-4", "m
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
-newrelic = { git = "git@github.com:newrelic/newrelic-python-agent.git", branch = "develop-openai-instrumentation" }
+newrelic = { git = "git@github.com:newrelic/newrelic-python-agent.git", branch = "improved-record-ml-event" }
 openai = ">=0.8,<0.30"
 tiktoken = "^0.5.1"
 
