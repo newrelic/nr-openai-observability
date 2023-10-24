@@ -1,5 +1,3 @@
-import os
-import atexit
 import logging
 import newrelic.agent
 import pkg_resources
@@ -80,18 +78,19 @@ class OpenAIMonitoring:
             newrelic.agent.record_ml_event(table, event_dict, self.application)
 
     def record_library(
-            self,
-            lib_name,
-            alias = None,
+        self,
+        lib_name,
+        alias=None,
     ):
         try:
             dist = pkg_resources.get_distribution(lib_name)
 
             if dist:
                 name = alias or lib_name
-                name = f'Python/ML/{name}/{dist.version}'
+                name = f"Python/ML/{name}/{dist.version}"
                 newrelic.agent.record_custom_metric(name, 1)
         except Exception:
             pass
+
 
 monitor = OpenAIMonitoring()

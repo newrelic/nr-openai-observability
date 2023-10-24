@@ -6,11 +6,21 @@ authors = ["AIR <air-opensource@newrelic.com>"]
 repository = "https://github.com/newrelic/nr-openai-observability"
 readme = "README.md"
 homepage = "https://newrelic.com/instant-observability/openai"
-keywords = ["newrelic", "observability", "openai", "gpt", "chatGPT", "GPT-4", "monitor", "generative", "ai"]
+keywords = [
+  "newrelic",
+  "observability",
+  "openai",
+  "gpt",
+  "chatGPT",
+  "GPT-4",
+  "monitor",
+  "generative",
+  "ai",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
-newrelic = { git = "git@github.com:newrelic/newrelic-python-agent.git", branch = "improved-record-ml-event" }
+newrelic = { git = "https://github.com/newrelic/newrelic-python-agent", branch = "improved-record-ml-event" }
 openai = ">=0.8,<0.30"
 tiktoken = "^0.5.1"
 
