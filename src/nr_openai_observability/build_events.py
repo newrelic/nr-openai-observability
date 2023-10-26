@@ -283,13 +283,9 @@ def build_embedding_event(response, request, response_headers, response_time):
             ["usage.prompt_tokens", "response.usage.prompt_tokens"],
             response.usage.prompt_tokens,
         ),
-        **compat_fields(
-            ["response.api_version", "response.headers.llmVersion"],
-            response_headers.get("openai-version"),
-        ),
         **compat_fields(["api_type", "response.api_type"], response.api_type),
         **compat_fields(
-            ["api_version", "response.api_version"],
+            ["api_version", "response.headers.llmVersion"],
             response_headers.get("openai-version"),
         ),
         **compat_fields(

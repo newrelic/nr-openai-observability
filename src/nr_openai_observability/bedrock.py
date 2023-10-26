@@ -6,6 +6,8 @@ import time
 import uuid
 
 from datetime import datetime
+
+from sympy import comp
 from nr_openai_observability.build_events import compat_fields, get_trace_details
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
@@ -359,7 +361,9 @@ def build_bedrock_events(response, event_dict, time_delta):
                 )
             )
         if max_tokens:
-            summary.update(["max_tokens", "request.max_tokens"], max_tokens)
+            summary.update(
+                compat_fields(["max_tokens", "request.max_tokens"], max_tokens)
+            )
 
         transaction_begin_event = {
             "human_prompt": messages[0]["content"],
