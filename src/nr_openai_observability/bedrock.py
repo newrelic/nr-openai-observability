@@ -6,7 +6,7 @@ import time
 import uuid
 
 from datetime import datetime
-from nr_openai_observability.build_events import get_trace_details
+from nr_openai_observability.build_events import compat_fields, get_trace_details
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
 from nr_openai_observability.consts import (
@@ -321,25 +321,45 @@ def build_bedrock_events(response, event_dict, time_delta):
             "model": model,
             "request.model": model,
             "response.model": model,
-            "temperature": temperature,
-            "api_type": None,
+            **compat_fields(["temperature", "request.temperature"], temperature),
+            **compat_fields(["api_type", "response.api_type"], None),
             "vendor": vendor,
             "ingest_source": "PythonSDK",
-            "number_of_messages": len(messages), 
-            "response": messages[-1]['content'][:4095],
+            **compat_fields(
+                ["number_of_messages", "response.number_of_messages"], len(messages)
+            ),
+            "response": messages[-1]["content"][:4095],
             **get_trace_details(),
         }
 
         if stop_reason:
-            summary["finish_reason"] = stop_reason
+            summary.update(
+                compat_fields(
+                    ["finish_reason", "response.choices.finish_reason"], stop_reason
+                )
+            )
         if response_tokens:
-            summary["usage.completion_tokens"] = response_tokens
+            summary.update(
+                compat_fields(
+                    ["usage.completion_tokens", "response.usage.completion_tokens"],
+                    response_tokens,
+                )
+            )
         if tokens:
-            summary["usage.total_tokens"] = tokens
+            summary.update(
+                compat_fields(
+                    ["usage.total_tokens", "response.usage.total_tokens"], tokens
+                )
+            )
         if input_tokens:
-            summary["usage.prompt_tokens"] = input_tokens
+            summary.update(
+                compat_fields(
+                    ["usage.prompt_tokens", "response.usage.prompt_tokens"],
+                    input_tokens,
+                )
+            )
         if max_tokens:
-            summary["max_tokens"] = max_tokens
+            summary.update(["max_tokens", "request.max_tokens"], max_tokens)
 
         transaction_begin_event = {
             "human_prompt": messages[0]["content"],
@@ -368,7 +388,7 @@ def build_bedrock_result_message(
         "role": role,
         "completion_id": completion_id,
         "sequence": sequence,
-        "model": model,
+        **compat_fields(["model", "response.model"], model),
         "vendor": vendor,
         "ingest_source": "PythonSDK",
         **get_trace_details(),
