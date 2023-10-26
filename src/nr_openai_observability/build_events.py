@@ -18,7 +18,7 @@ def build_messages_events(messages, model, completion_id, tags={}, start_seq_num
             "content": (message.get("content") or "")[:4095],
             "role": message.get("role"),
             "sequence": index + start_seq_num,
-            "model": model,
+            **compat_fields(["model", "response.model"], model),
             "vendor": "openAI",
             "ingest_source": "PythonSDK",
             **get_trace_details(),
@@ -51,8 +51,8 @@ def _get_rate_limit_data(response_headers):
         **compat_fields(
             ["ratelimit_reset_requests", "response.headers.ratelimitResetRequests"],
             response_headers.get("x-ratelimit-reset-requests"),
-        )
-        ** compat_fields(
+        ),
+        **compat_fields(
             ["ratelimit_remaining_tokens", "response.headers.ratelimitRemainingTokens"],
             _get_numeric_header("ratelimit_remaining_tokens"),
         ),
@@ -131,18 +131,40 @@ def build_stream_completion_events(
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": last_chunk.model,
-        "usage.completion_tokens": completion_tokens,
-        "usage.total_tokens": total_tokens,
-        "usage.prompt_tokens": prompt_tokens,
-        "temperature": request.get("temperature"),
-        "max_tokens": request.get("max_tokens"),
-        "finish_reason": last_chunk.choices[0].finish_reason,
-        "api_type": last_chunk.api_type,
+        **compat_fields(
+            ["usage.completion_tokens", "response.usage.completion_tokens"],
+            completion_tokens,
+        ),
+        **compat_fields(
+            ["usage.total_tokens", "response.usage.total_tokens"], total_tokens
+        ),
+        **compat_fields(
+            ["usage.prompt_tokens", "response.usage.prompt_tokens"], prompt_tokens
+        ),
+        **compat_fields(
+            ["temperature", "request.temperature"], request.get("temperature")
+        ),
+        **compat_fields(
+            ["max_tokens", "request.max_tokens"], request.get("max_tokens")
+        ),
+        **compat_fields(
+            ["finish_reason", "response.choices.finish_reason"],
+            last_chunk.choices[0].finish_reason,
+        ),
+        **compat_fields(["api_type", "response.api_type"], last_chunk.api_type),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        "number_of_messages": len(request.get("messages", [])) + 1,
-        "organization": last_chunk.organization,
-        "api_version": response_headers.get("openai-version"),
+        **compat_fields(
+            ["number_of_messages", "response.number_of_messages"],
+            len(request.get("messages", [])) + 1,
+        ),
+        **compat_fields(
+            ["organization", "response.organization"], last_chunk.organization
+        ),
+        **compat_fields(
+            ["api_version", "response.headers.llmVersion"],
+            response_headers.get("openai-version"),
+        ),
         "response": (message.get("content") or "")[:4095],
         "stream": True,
         **get_trace_details(),
@@ -158,22 +180,47 @@ def build_completion_summary(
 ):
     completion = {
         "id": completion_id,
+        "request_id": response_headers.get("x-request-id", ""),
         "api_key_last_four_digits": f"sk-{response.api_key[-4:]}",
         "response_time": int(response_time * 1000),
         "request.model": request.get("model") or request.get("engine"),
         "response.model": response.model,
-        "usage.completion_tokens": response.usage.completion_tokens,
-        "usage.total_tokens": response.usage.total_tokens,
-        "usage.prompt_tokens": response.usage.prompt_tokens,
-        "temperature": request.get("temperature"),
-        "max_tokens": request.get("max_tokens"),
-        "finish_reason": response.choices[0].finish_reason,
-        "api_type": response.api_type,
+        **compat_fields(
+            ["organization", "response.organization"], response.organization
+        ),
+        **compat_fields(
+            ["usage.completion_tokens", "response.usage.completion_tokens"],
+            response.usage.completion_tokens,
+        ),
+        **compat_fields(
+            ["usage.total_tokens", "response.usage.total_tokens"],
+            response.usage.total_tokens,
+        ),
+        **compat_fields(
+            ["usage.prompt_tokens", "response.usage.prompt_tokens"],
+            response.usage.prompt_tokens,
+        ),
+        **compat_fields(
+            ["temperature", "request.temperature"], request.get("temperature")
+        ),
+        **compat_fields(
+            ["max_tokens", "request.max_tokens"], request.get("max_tokens")
+        ),
+        **compat_fields(
+            ["finish_reason", "response.choices.finish_reason"],
+            response.choices[0].finish_reason,
+        ),
+        **compat_fields(["api_type", "response.api_type"], response.api_type),
+        **compat_fields(
+            ["api_version", "response.headers.llmVersion"],
+            response_headers.get("openai-version"),
+        ),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        "number_of_messages": len(request.get("messages", [])) + len(response.choices),
-        "organization": response.organization,
-        "api_version": response_headers.get("openai-version"),
+        **compat_fields(
+            ["number_of_messages", "response.number_of_messages"],
+            len(request.get("messages", [])) + len(response.choices),
+        ),
         "response": (final_message.get("content") or "")[:4095],
         "stream": False,
         **get_trace_details(),
@@ -189,12 +236,19 @@ def build_completion_summary_for_error(request, error, completion_id, isStream=F
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
         "request.model": request.get("model") or request.get("engine"),
-        "temperature": request.get("temperature"),
-        "max_tokens": request.get("max_tokens"),
+        **compat_fields(
+            ["temperature", "request.temperature"], request.get("temperature")
+        ),
+        **compat_fields(
+            ["max_tokens", "request.max_tokens"], request.get("max_tokens")
+        ),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        "organization": error.organization,
-        "number_of_messages": len(request.get("messages", [])),
+        **compat_fields(["organization", "response.organization"], error.organization),
+        **compat_fields(
+            ["number_of_messages", "response.number_of_messages"],
+            len(request.get("messages", [])),
+        ),
         "error_status": error.http_status,
         "error_message": error.error.message,
         "error_type": error.error.type,
@@ -258,7 +312,7 @@ def build_embedding_error_event(request, error):
         "request.model": request.get("model") or request.get("engine"),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        "organization": error.organization,
+        **compat_fields(["organization", "response.organization"], error.organization),
         "error_status": error.http_status,
         "error_message": error.error.message,
         "error_type": error.error.type,
