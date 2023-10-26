@@ -7,7 +7,6 @@ import uuid
 
 from datetime import datetime
 
-from sympy import comp
 from nr_openai_observability.build_events import compat_fields, get_trace_details
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
