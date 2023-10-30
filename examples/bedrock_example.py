@@ -117,6 +117,36 @@ def runCohere(bedrock_runtime):
     print()
 
 
+@newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="bedrock-embedding")
+def runTitanEmbedding(bedrock_runtime):
+    from pathlib import Path
+
+    # Create an embedding with Amazon Titan
+    data = Path("state_of_the_union.txt").read_text()
+
+    # process each line separated to stay within token limits
+    for line in data.splitlines():
+        if not line:
+            continue
+
+        body = json.dumps({"inputText": line})
+        modelId = "amazon.titan-embed-text-v1"
+        accept = "application/json"
+        contentType = "application/json"
+
+        print(f'Test Embedding with AWS Titan model {modelId}')
+        response = bedrock_runtime.invoke_model(
+            body=body, modelId=modelId, accept=accept, contentType=contentType
+        )
+        response_body = json.loads(response.get("body").read())
+
+        print(f"input length {len(line)} generated {len(response_body.get('embedding'))} embeddings")
+        break # only sending the first line for testing
+
+    print()
+
+
 if __name__ == "__main__":
     app_name = os.getenv('NEW_RELIC_APP_NAME')
     if not app_name:
@@ -145,6 +175,7 @@ if __name__ == "__main__":
     runAnthropic(bedrock_runtime)
     runAi21(bedrock_runtime)
     runCohere(bedrock_runtime)
+    runTitanEmbedding(bedrock_runtime)
 
     # Allow the New Relic agent to send final messages as part of shutdown
     # The agent by default can send data up to a minute later
