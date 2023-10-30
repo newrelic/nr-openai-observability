@@ -203,10 +203,6 @@ def handle_bedrock_embedding(result, contents, time_delta, **kwargs):
         "vendor": "Bedrock",
         "ingest_source": "PythonSDK",
         **compat_fields(["response_time", "duration"], int(time_delta * 1000)),
-        **compat_fields(
-            ["usage.total_tokens", "response.usage.total_tokens"],
-            len(response_body.get("embedding")),
-        ),
         **get_trace_details(),
     }
 
