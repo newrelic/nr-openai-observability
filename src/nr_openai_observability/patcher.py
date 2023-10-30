@@ -87,7 +87,7 @@ def patcher_create_chat_completion(original_fn, *args, **kwargs):
             terminal=True,
         ) as trace:
             trace.add_custom_attribute("completion_id", completion_id)
-            monitor.record_library('openai', 'OpenAI')
+            monitor.record_library("openai", "OpenAI")
             handle_start_completion(kwargs, completion_id)
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
@@ -114,8 +114,9 @@ async def patcher_create_chat_completion_async(original_fn, *args, **kwargs):
         timestamp = time.time()
         with newrelic.agent.FunctionTrace(
             name="AI/OpenAI/Chat/Completions/Create", group="", terminal=True
-        ):
-            monitor.record_library('openai', 'OpenAI')
+        ) as trace:
+            trace.add_custom_attribute("completion_id", completion_id)
+            monitor.record_library("openai", "OpenAI")
             handle_start_completion(kwargs, completion_id)
             result = await original_fn(*args, **kwargs)
 
@@ -463,6 +464,7 @@ def perform_patch():
         pass
 
     from nr_openai_observability.bedrock import perform_patch_bedrock
+
     perform_patch_bedrock()
 
     if "langchain" in sys.modules:
