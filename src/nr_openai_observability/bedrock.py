@@ -160,6 +160,10 @@ def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
             body = json.loads(event_dict["body"])
             event_dict["body"] = body
 
+        if "embedding" in response_body:
+            # currently not instrumenting embedding calls. Just exit early.
+            return
+
         (summary, messages, transaction_begin_event) = build_bedrock_events(
             response, event_dict, time_delta
         )
