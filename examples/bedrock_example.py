@@ -131,8 +131,6 @@ def runTitanEmbedding(bedrock_runtime):
             continue
 
         body = json.dumps({"inputText": line})
-        # Titan modelIds:
-        #  - amazon.titan-text-express-v1
         modelId = "amazon.titan-embed-text-v1"
         accept = "application/json"
         contentType = "application/json"
