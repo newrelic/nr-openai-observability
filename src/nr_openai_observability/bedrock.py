@@ -11,6 +11,7 @@ from nr_openai_observability.build_events import compat_fields, get_trace_detail
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
 from nr_openai_observability.consts import (
+    EmbeddingEventName,
     MessageEventName,
     SummaryEventName,
     TransactionBeginEventName,
@@ -93,10 +94,17 @@ def patcher_aws_create_api(original_fn, *args, **kwargs):
 def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     timestamp = time.time()
     result, time_delta = None, None
+    model = kwargs.get("modelId") or ""
+    embedding = 'titan-embed' in model
 
     try:
+        trace_name = "AI/Bedrock/Chat/Completions/Create"
+
+        if embedding:
+            trace_name = "AI/Bedrock/Embeddings/Create"
+
         with newrelic.agent.FunctionTrace(
-            name="AI/Bedrock/Chat/Completions/Create", group="", terminal=True
+            name=trace_name, group="", terminal=True
         ):
             monitor.record_library("botocore", "Bedrock")
             result = original_fn(*args, **kwargs)
@@ -111,7 +119,10 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
 
     contents = result["body"].read()
 
-    handle_bedrock_create_completion(result, contents, time_delta, **kwargs)
+    if embedding:
+        handle_bedrock_embedding(result, contents, time_delta, **kwargs)
+    else:
+        handle_bedrock_create_completion(result, contents, time_delta, **kwargs)
 
     # we have to reset the body after we read it. The handle function is going to read the contents,
     # and we'll have to apply the body again before returning back.
@@ -160,10 +171,6 @@ def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
             body = json.loads(event_dict["body"])
             event_dict["body"] = body
 
-        if "embedding" in response_body:
-            # currently not instrumenting embedding calls. Just exit early.
-            return
-
         (summary, messages, transaction_begin_event) = build_bedrock_events(
             response, event_dict, time_delta
         )
@@ -176,6 +183,34 @@ def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
     except Exception as error:
         build_completion_summary_for_error(error, **kwargs)
         raise error
+
+
+def handle_bedrock_embedding(result, contents, time_delta, **kwargs):
+    embedding_id = str(uuid.uuid4())
+    response_body = json.loads(contents)
+    input_body = json.loads(kwargs.get("body"))
+    request_id = None
+    if None != result.get("ResponseMetadata") and None != result.get("ResponseMetadata").get("RequestId"):
+        request_id = result.get("ResponseMetadata").get("RequestId")
+
+    embedding = {
+        "id": embedding_id,
+        "request_id": request_id,
+        "input": input_body.get("inputText")[:4095],
+        "timestamp": datetime.now(),
+        "request.model": kwargs.get("modelId"),
+        "response.model": kwargs.get("modelId"),
+        "vendor": "Bedrock",
+        "ingest_source": "PythonSDK",
+        **compat_fields(["response_time", "duration"], int(time_delta * 1000)),
+        **compat_fields(
+            ["usage.total_tokens", "response.usage.total_tokens"],
+            len(response_body.get("embedding")),
+        ),
+        **get_trace_details(),
+    }
+
+    monitor.record_event(embedding, EmbeddingEventName)
 
 
 def build_bedrock_events(response, event_dict, time_delta):
