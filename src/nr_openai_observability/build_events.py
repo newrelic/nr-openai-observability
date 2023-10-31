@@ -232,6 +232,8 @@ def build_completion_summary(
 
 
 def build_completion_summary_for_error(request, error, completion_id, isStream=False):
+    nested_error = getattr(error, "error", None)
+
     completion = {
         "id": completion_id,
         "api_key_last_four_digits": f"sk-{openai.api_key[-4:]}",
@@ -244,16 +246,19 @@ def build_completion_summary_for_error(request, error, completion_id, isStream=F
         ),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        **compat_fields(["organization", "response.organization"], error.organization),
+        **compat_fields(
+            ["organization", "response.organization"],
+            getattr(error, "organization", None),
+        ),
         **compat_fields(
             ["number_of_messages", "response.number_of_messages"],
             len(request.get("messages", [])),
         ),
-        "error_status": error.http_status,
-        "error_message": error.error.message,
-        "error_type": error.error.type,
-        "error_code": error.error.code,
-        "error_param": error.error.param,
+        "error_status": getattr(error, "http_status", None),
+        "error_message": nested_error.message if nested_error else str(error),
+        "error_type": getattr(nested_error, "type", None) if nested_error else error.__class__.__name__,
+        "error_code": getattr(nested_error, "code", None) if nested_error else None,
+        "error_param": getattr(nested_error, "param", None) if nested_error else None,
         "stream": isStream,
         **get_trace_details(),
     }
@@ -300,6 +305,7 @@ def build_embedding_event(response, request, response_headers, response_time):
 
 def build_embedding_error_event(request, error):
     embedding_id = str(uuid.uuid4())
+    nested_error = getattr(error, "error", None)
 
     embedding = {
         "id": embedding_id,
@@ -308,12 +314,15 @@ def build_embedding_error_event(request, error):
         "request.model": request.get("model") or request.get("engine"),
         "vendor": "openAI",
         "ingest_source": "PythonSDK",
-        **compat_fields(["organization", "response.organization"], error.organization),
-        "error_status": error.http_status,
-        "error_message": error.error.message,
-        "error_type": error.error.type,
-        "error_code": error.error.code,
-        "error_param": error.error.param,
+        **compat_fields(
+            ["organization", "response.organization"],
+            getattr(error, "organization", None),
+        ),
+        "error_status": getattr(error, "http_status", None),
+        "error_message": nested_error.message if nested_error else str(error),
+        "error_type": getattr(nested_error, "type", None) if nested_error else error.__class__.__name__,
+        "error_code": getattr(nested_error, "code", None) if nested_error else None,
+        "error_param": getattr(nested_error, "param", None) if nested_error else None,
         **get_trace_details(),
     }
 
