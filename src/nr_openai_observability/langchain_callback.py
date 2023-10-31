@@ -5,14 +5,18 @@ from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, LLMResult
 
 from nr_openai_observability import monitor
-from nr_openai_observability.consts import CompletionEventName, ChainEventName, ToolEventName
+from nr_openai_observability.consts import (
+    CompletionEventName,
+    ChainEventName,
+    ToolEventName,
+)
 import newrelic.agent
 
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
         self,
-        application_name: str,
+        application_name: str = "",
         langchain_callback_metadata: Dict[str, Any] = None,
         **kwargs: Any,
     ) -> None:
@@ -26,8 +30,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self.langchain_callback_metadata = langchain_callback_metadata
         self.tool_invocation_counter = 0
         self.trace_stacks = {}
-        self.new_relic_monitor.record_library('langchain', 'LangChain')
-
+        self.new_relic_monitor.record_library("langchain", "LangChain")
 
     def get_and_update_tool_invocation_counter(self):
         self.tool_invocation_counter += 1
@@ -45,7 +48,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         }
         trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
         self._start_segment(kwargs["run_id"], trace, tags)
-
 
     # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
     def on_chat_model_start(
@@ -147,9 +149,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> Any:
         """Run when tool starts running."""
-        # we don't know if the tool is actually for Pinecone, but this is a best guess if 
+        # we don't know if the tool is actually for Pinecone, but this is a best guess if
         # the module is in scope.
-        self.new_relic_monitor.record_library('pinecone-client', 'Pinecone')
+        self.new_relic_monitor.record_library("pinecone-client", "Pinecone")
         tool_name = serialized.get("name")
         trace = newrelic.agent.FunctionTrace(
             name=f"AI/LangChain/Tool/{tool_name}", terminal=False
@@ -222,10 +224,13 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                 if tags:
                     attrs.update(tags)
 
-                attrs['trace.id'] = getattr(newrelic.agent.current_transaction(), "trace_id", None) or trace.guid
-                attrs['guid'] = trace.guid
-                attrs['parent.id'] = None
-                attrs['duration.ms'] = trace.duration * 1000
+                attrs["trace.id"] = (
+                    getattr(newrelic.agent.current_transaction(), "trace_id", None)
+                    or trace.guid
+                )
+                attrs["guid"] = trace.guid
+                attrs["parent.id"] = None
+                attrs["duration.ms"] = trace.duration * 1000
 
                 self.new_relic_monitor.record_event(attrs, event_name)
 
@@ -237,8 +242,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         if not model:
             model = invocation_params.get("model_id")
         if not model:
-            if 'repr' in serialized:
-                match = re.match(".*model_id='([^']+)'.*", serialized['repr'])
+            if "repr" in serialized:
+                match = re.match(".*model_id='([^']+)'.*", serialized["repr"])
                 if match:
                     model = match.group(1)
         if not model:

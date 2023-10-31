@@ -9,7 +9,7 @@ from nr_openai_observability.langchain_callback import NewRelicCallbackHandler
 class NewRelicAsyncCallbackHandler(AsyncCallbackHandler):
     def __init__(
         self,
-        application_name: str,
+        application_name: str = "",
         langchain_callback_metadata: Dict[str, Any] = None,
         **kwargs: Any,
     ) -> None:

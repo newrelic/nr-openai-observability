@@ -41,14 +41,10 @@ class OpenAIMonitoring:
 
     def start(
         self,
-        application_name: str,
         metadata: Dict[str, Any] = {},
         metadata_callback: Optional[Callable] = None,
     ):
         if not self.initialized:
-            self.application_name = application_name
-            self.application = newrelic.agent.application(name=application_name)
-            self.application.activate()
             self._set_metadata(metadata)
             self.metadata_callback = metadata_callback
             self._start()
@@ -75,7 +71,9 @@ class OpenAIMonitoring:
         if transaction != None:
             newrelic.agent.record_ml_event(table, event_dict)
         else:
-            newrelic.agent.record_ml_event(table, event_dict, self.application)
+            newrelic.agent.record_ml_event(
+                table, event_dict, newrelic.agent.application()
+            )
 
     def record_library(
         self,
