@@ -38,7 +38,7 @@ nr-openai-observability = { git = "https://github.com/newrelic/nr-openai-observa
 
 There are a number of ways you can set up the Python agent depending on your application architecture. You can follow the workflow [here](https://docs.newrelic.com/install/python/) for help configuring your agent.
 
-_Limited Preview only_ - While the nr-openai-observability library is in Limited Preview, you should install the following version of the New Relic agent:
+_Limited Preview only_ - While the nr-openai-observability library is in Limited Preview, you must install the following version of the New Relic agent (git+https://github.com/newrelic/newrelic-python-agent@3b6273ee65d92fb24cf803d4023fe45b3620ee93)
 
 **With `pip`**
 
