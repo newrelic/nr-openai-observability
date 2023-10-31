@@ -1,28 +1,27 @@
 import boto3
-import json 
+import json
 import newrelic.agent
 import openai
 import os
-import sys
 
 
 # For this example to work, you should set the following environment variables
 # to values that work for your specific environment.
 #
-#   NEW_RELIC_APP_NAME 
+#   NEW_RELIC_APP_NAME
 #   NEW_RELIC_LICENSE_KEY
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
 #   OPENAI_API_KEY
-#   
+#
 
 
 @newrelic.agent.background_task()
 @newrelic.agent.function_trace(name="openai")
 def runOpenAI(prompt, user_request):
-    # change to 'gpt-4' if you have access to it 
-    model="gpt-3.5-turbo" 
-    
+    # change to 'gpt-4' if you have access to it
+    model = "gpt-3.5-turbo"
+
     print(f"Running OpenAI with model {model}")
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -37,12 +36,12 @@ def runOpenAI(prompt, user_request):
             {
                 "role": "user",
                 "content": user_request,
-            }
-        ]
+            },
+        ],
     )
 
     print("Response from ChatGPT\n")
-    print(response['choices'][0]['message']['content'])
+    print(response["choices"][0]["message"]["content"])
     print("\n\n")
 
 
@@ -52,8 +51,8 @@ def runBedrock(prompt, user_request):
     """
     Run a query with AWS Bedrock using Anthropic Claude v2.
     """
-    bedrock_runtime = boto3.client('bedrock-runtime', 'us-east-1')
-    full_prompt = f'{prompt}\n{user_request}'
+    bedrock_runtime = boto3.client("bedrock-runtime", "us-east-1")
+    full_prompt = f"{prompt}\n{user_request}"
     prompt_data = f"Human: ${full_prompt}\n\nAssistant:"
     body = json.dumps({"prompt": prompt_data, "max_tokens_to_sample": 500})
     modelId = "anthropic.claude-v2"
@@ -73,18 +72,15 @@ def runBedrock(prompt, user_request):
 
 
 if __name__ == "__main__":
-    app_name = os.getenv('NEW_RELIC_APP_NAME')
-    if not app_name:
-        print("You must set the NEW_RELIC_APP_NAME environment variable.")
-        exit(1)
-
-    # Enable New Relic Python agent
-    newrelic.agent.initialize('newrelic.ini')
-    newrelic.agent.register_application(name=app_name, timeout=10)
+    # Enable New Relic Python agent. You must make sure your application name is either defined in the ini file below
+    # or in the environment variable NEW_RELIC_APP_NAME
+    newrelic.agent.initialize("newrelic.ini")
+    newrelic.agent.register_application(timeout=10)
 
     # Enable New Relic observability for LLMs
     from nr_openai_observability import monitor
-    monitor.initialization(app_name)
+
+    monitor.initialization()
 
     # prompt is credited to https://prompts.chat/#act-as-a-math-teacher
     prompt = """I want you to act as a math teacher. 
@@ -93,7 +89,9 @@ if __name__ == "__main__":
     This could include providing step-by-step instructions for solving a problem, 
     demonstrating various techniques with visuals or suggesting online 
     resources for further study."""
-    user_request = 'My first request is “I need help understanding how probability works."' 
+    user_request = (
+        'My first request is “I need help understanding how probability works."'
+    )
 
     runOpenAI(prompt, user_request)
     runBedrock(prompt, user_request)

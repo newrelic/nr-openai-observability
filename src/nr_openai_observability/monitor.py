@@ -12,6 +12,11 @@ def initialization(
     metadata: Dict[str, Any] = {},
     metadata_callback: Optional[Callable] = None,
 ):
+    if application_name != "":
+        logger.warn(
+            "The application_name parameter is being deprecated in favor of deriving the application name from the Python Agent's configuration"
+        )
+
     monitor.start(
         metadata,
         metadata_callback,

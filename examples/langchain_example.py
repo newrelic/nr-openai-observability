@@ -2,7 +2,6 @@ from typing import Any, Dict, List
 
 import boto3
 import newrelic.agent
-import os
 from langchain.agents import AgentType, initialize_agent
 from langchain.chat_models import ChatOpenAI, BedrockChat
 from langchain.llms import Bedrock
