@@ -26,7 +26,8 @@ def runTitan(bedrock_runtime):
     body = json.dumps({"inputText": prompt_data})
     # Titan modelIds:
     #  - amazon.titan-text-express-v1
-    modelId = "amazon.titan-text-express-v1"
+    #  - amazon.titan-text-lite-v1
+    modelId = "amazon.titan-text-express-v1" 
     accept = "application/json"
     contentType = "application/json"
 

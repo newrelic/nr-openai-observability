@@ -304,17 +304,12 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
                     )
                 )
         elif "claude" in model:
-            from anthropic import _tokenizers
-
-            tokenizer = _tokenizers.sync_get_tokenizer()
-            encoded = tokenizer.encode(event_dict["completion"])
-            tokens += len(encoded)
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
                     message_id=message_id,
                     content=event_dict["completion"],
-                    tokens=len(encoded),
+                    tokens=response_tokens,
                     role="assistant",
                     sequence=len(messages),
                     stop_reason=event_dict["stop_reason"],
@@ -489,6 +484,9 @@ def get_bedrock_info(event_dict):
             tokenizer = _tokenizers.sync_get_tokenizer()
             encoded = tokenizer.encode(input_message)
             input_tokens = len(encoded)
+
+            encoded = tokenizer.encode(event_dict["completion"])
+            response_tokens = len(encoded)
         if "ai21.j2" in model:
             input_message = event_dict["prompt.text"]
             input_tokens = len(event_dict["prompt.tokens"])
