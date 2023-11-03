@@ -13,8 +13,6 @@ from nr_openai_observability.call_vars import (
     set_conversation_id,
     get_response_model,
     get_completion_id,
-    set_message_id,
-    get_message_id,
 )
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
@@ -197,20 +195,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def on_agent_finish(self, finish: AgentFinish, **kwargs: Any) -> Any:
         """Run on agent end."""
-        final_message = {
-            "role": "assistant",
-            "content": finish.return_values.get("output"),
-        }
-        response_message = build_messages_events(
-            [final_message],
-            get_response_model(),
-            get_completion_id(),
-            get_message_id(),
-            None,
-            {"is_returned_langchain_message": True},
-        )[0]
-
-        self.new_relic_monitor.record_event(response_message, MessageEventName)
         # self._finish_segment(kwargs["run_id"])
 
     def _start_segment(self, run_id, trace, tags={}):
@@ -272,4 +256,3 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def _save_metadata(self, metadata):
         set_conversation_id(metadata.get("conversation_id", None))
-        set_message_id(metadata.get("message_id", None))

@@ -1,17 +1,10 @@
 import contextvars
 
 conversation_id = contextvars.ContextVar('conversation_id')
-message_id = contextvars.ContextVar('message_id')
 completion_id = contextvars.ContextVar('completion_id')
 response_model = contextvars.ContextVar('response_model')
 ai_vendor = contextvars.ContextVar('ai_vendor')
 ai_message_ids = contextvars.ContextVar('ai_message_ids')
-
-def set_message_id(id):
-    message_id.set(id)
-
-def get_message_id():
-    return message_id.get(None)
 
 def set_completion_id(id):
     completion_id.set(id)
