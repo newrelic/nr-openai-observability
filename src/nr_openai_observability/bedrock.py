@@ -11,6 +11,7 @@ from nr_openai_observability.build_events import compat_fields, get_trace_detail
 from nr_openai_observability.monitor import monitor
 from nr_openai_observability.patcher import _patched_call
 from nr_openai_observability.consts import (
+    EmbeddingEventName,
     MessageEventName,
     SummaryEventName,
     TransactionBeginEventName,
@@ -104,16 +105,26 @@ def patcher_aws_create_api(original_fn, *args, **kwargs):
 def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     timestamp = time.time()
     result, time_delta = None, None
+    model = kwargs.get("modelId") or ""
+    embedding = "titan-embed" in model
+
+    completion_id = str(uuid.uuid4())
 
     try:
+        trace_name = "AI/Bedrock/Chat/Completions/Create"
+
+        if embedding:
+            trace_name = "AI/Bedrock/Embeddings/Create"
+
         with newrelic.agent.FunctionTrace(
-            name="AI/Bedrock/Chat/Completions/Create", group="", terminal=True
-        ):
+            name=trace_name, group="", terminal=True
+        ) as trace:
+            trace.add_custom_attribute("completion_id", completion_id)
             monitor.record_library("botocore", "Bedrock")
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
     except Exception as error:
-        build_completion_summary_for_error(error, **kwargs)
+        build_completion_summary_for_error(error, completion_id, **kwargs)
         raise result
 
     # print the HTTP body
@@ -122,7 +133,12 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
 
     contents = result["body"].read()
 
-    handle_bedrock_create_completion(result, contents, time_delta, **kwargs)
+    if embedding:
+        handle_bedrock_embedding(result, contents, time_delta, **kwargs)
+    else:
+        handle_bedrock_create_completion(
+            result, contents, completion_id, time_delta, **kwargs
+        )
 
     # we have to reset the body after we read it. The handle function is going to read the contents,
     # and we'll have to apply the body again before returning back.
@@ -131,11 +147,11 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     return result
 
 
-def build_completion_summary_for_error(error, **kwargs):
+def build_completion_summary_for_error(error, completion_id, **kwargs):
     logger.error(f"error invoking bedrock function: {error}")
 
     completion = {
-        "id": str(uuid.uuid4()),
+        "id": completion_id,
         "vendor": "bedrock",
         "ingest_source": "PythonSDK",
         "timestamp": datetime.now(),
@@ -150,7 +166,9 @@ def build_completion_summary_for_error(error, **kwargs):
 
 
 @handle_errors
-def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
+def handle_bedrock_create_completion(
+    response, contents, completion_id, time_delta, **kwargs
+):
     from nr_openai_observability.patcher import flatten_dict
 
     try:
@@ -172,7 +190,7 @@ def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
             event_dict["body"] = body
 
         (summary, messages, transaction_begin_event) = build_bedrock_events(
-            response, event_dict, time_delta
+            response, event_dict, completion_id, time_delta
         )
 
         for event in messages:
@@ -185,7 +203,33 @@ def handle_bedrock_create_completion(response, contents, time_delta, **kwargs):
         raise error
 
 
-def build_bedrock_events(response, event_dict, time_delta):
+def handle_bedrock_embedding(result, contents, time_delta, **kwargs):
+    embedding_id = str(uuid.uuid4())
+    response_body = json.loads(contents)
+    input_body = json.loads(kwargs.get("body"))
+    request_id = None
+    if None != result.get("ResponseMetadata") and None != result.get(
+        "ResponseMetadata"
+    ).get("RequestId"):
+        request_id = result.get("ResponseMetadata").get("RequestId")
+
+    embedding = {
+        "id": embedding_id,
+        "request_id": request_id,
+        "input": input_body.get("inputText")[:4095],
+        "timestamp": datetime.now(),
+        "request.model": kwargs.get("modelId"),
+        "response.model": kwargs.get("modelId"),
+        "vendor": "Bedrock",
+        "ingest_source": "PythonSDK",
+        **compat_fields(["response_time", "duration"], int(time_delta * 1000)),
+        **get_trace_details(),
+    }
+
+    monitor.record_event(embedding, EmbeddingEventName)
+
+
+def build_bedrock_events(response, event_dict, completion_id, time_delta):
     """
     returns (summary_event, list(message_events), transaction_event)
     """
@@ -202,7 +246,6 @@ def build_bedrock_events(response, event_dict, time_delta):
     model = "bedrock-unknown"
 
     if "modelId" in event_dict:
-        completion_id = newrelic.agent.current_span_id() or str(uuid.uuid4())
         model = event_dict["modelId"]
         vendor = "bedrock"
         message_id = str(uuid.uuid4())
@@ -272,17 +315,12 @@ def build_bedrock_events(response, event_dict, time_delta):
                     )
                 )
         elif "claude" in model:
-            from anthropic import _tokenizers
-
-            tokenizer = _tokenizers.sync_get_tokenizer()
-            encoded = tokenizer.encode(event_dict["completion"])
-            tokens += len(encoded)
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
                     message_id=message_id,
                     content=event_dict["completion"],
-                    tokens=len(encoded),
+                    tokens=response_tokens,
                     role="assistant",
                     sequence=len(messages),
                     stop_reason=event_dict["stop_reason"],
@@ -468,6 +506,9 @@ def get_bedrock_info(event_dict):
             tokenizer = _tokenizers.sync_get_tokenizer()
             encoded = tokenizer.encode(input_message)
             input_tokens = len(encoded)
+
+            encoded = tokenizer.encode(event_dict["completion"])
+            response_tokens = len(encoded)
         if "ai21.j2" in model:
             input_message = event_dict["prompt.text"]
             input_tokens = len(event_dict["prompt.tokens"])

@@ -1,4 +1,3 @@
-
 [![Community Project header](https://github.com/newrelic/open-source-office/raw/master/examples/categories/images/Community_Project.png)](https://github.com/newrelic/open-source-office/blob/master/examples/categories/index.md#category-community-project)
 
 # OpenAI Observability
@@ -6,6 +5,7 @@
 A lightweight tool to monitor your OpenAI workload.
 
 ## Installation
+
 **With `pip`**
 
 ```bash
@@ -14,9 +14,10 @@ pip install nr-openai-observability
 
 ## Getting Started
 
-#### STEP 1: Set Your Environment Variables 
-* [Get your License key](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) (also referenced as `ingest - license`) and set it as environment variable: `NEW_RELIC_LICENSE_KEY`.
-[Click here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key) for more details and instructions.
+#### STEP 1: Set Your Environment Variables
+
+- [Get your License key](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) (also referenced as `ingest - license`) and set it as environment variable: `NEW_RELIC_LICENSE_KEY`.
+  [Click here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key) for more details and instructions.
 
 **`Bash`**
 
@@ -30,18 +31,17 @@ export NEW_RELIC_LICENSE_KEY=<license key>
 import os
 os.environ["NEW_RELIC_LICENSE_KEY"] = "<license key>"
 ```
-`NEW_RELIC_LICENSE_KEY` can also be sent as a parameter at the `monitor.initialization()`
- call.
 
-* Are you reporting data to the New Relic EU region? click [here](#eu-account-users) for more instructions.
+`NEW_RELIC_LICENSE_KEY` can also be sent as a parameter at the `monitor.initialization()`
+call.
+
+- Are you reporting data to the New Relic EU region? click [here](#eu-account-users) for more instructions.
 
 #### STEP 2: Add the following two lines to your code
 
 ```python
 from nr_openai_observability import monitor
-monitor.initialization(
-    application_name="OpenAI observability example"
-)
+monitor.initialization()
 ```
 
 #### Code example:
@@ -53,9 +53,7 @@ import os
 import openai
 from nr_openai_observability import monitor
 
-monitor.initialization(
-    application_name="OpenAI observability example"
-)
+monitor.initialization()
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 response = openai.ChatCompletion.create(
@@ -88,9 +86,9 @@ export EVENT_CLIENT_HOST="insights-collector.eu01.nr-data.net"
 import os
 os.environ["EVENT_CLIENT_HOST"] = "insights-collector.eu01.nr-data.net"
 ```
-    
+
 `EVENT_CLIENT_HOST` can also be sent as a parameter at the `monitor.initialization()`
- call.
+call.
 
 ## Support
 
@@ -110,8 +108,9 @@ If you believe you have found a security vulnerability in this project or any of
 
 If you would like to contribute to this project, review [these guidelines](./CONTRIBUTING.md).
 
-To all contributors, we thank you!  Without your contribution, this project would not be what it is today.
+To all contributors, we thank you! Without your contribution, this project would not be what it is today.
 
 ## License
+
 nr-openai-observability is licensed under the [Apache 2.0](http://apache.org/licenses/LICENSE-2.0.txt) License.
 The nr-openai-observability also uses source code from third-party libraries. You can find full details on which libraries are used and the terms under which they are licensed in the third-party notices document.

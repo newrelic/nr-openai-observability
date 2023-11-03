@@ -10,12 +10,16 @@ logger = logging.getLogger("nr_openai_observability")
 
 
 def initialization(
-    application_name: str,
+    application_name: str = "",
     metadata: Dict[str, Any] = {},
     metadata_callback: Optional[Callable] = None,
 ):
+    if application_name != "":
+        logger.warn(
+            "The application_name parameter is being deprecated in favor of deriving the application name from the Python Agent's configuration"
+        )
+
     monitor.start(
-        application_name,
         metadata,
         metadata_callback,
     )
