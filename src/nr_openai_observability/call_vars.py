@@ -1,28 +1,7 @@
 import contextvars
 
 conversation_id = contextvars.ContextVar('conversation_id')
-completion_id = contextvars.ContextVar('completion_id')
-response_model = contextvars.ContextVar('response_model')
-ai_vendor = contextvars.ContextVar('ai_vendor')
 ai_message_ids = contextvars.ContextVar('ai_message_ids')
-
-def set_completion_id(id):
-    completion_id.set(id)
-
-def get_completion_id():
-    return completion_id.get(None)
-
-def set_vendor(vendor):
-    ai_vendor.set(vendor)
-
-def get_vendor():
-    return ai_vendor.get(None)
-
-def set_response_model(model):
-    response_model.set(model)
-
-def get_response_model():
-    return response_model.get(None)
 
 def get_ai_message_ids(response_id=None):
     if response_id is not None:

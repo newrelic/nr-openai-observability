@@ -15,8 +15,6 @@ from nr_openai_observability.build_events import build_messages_events
 from nr_openai_observability.consts import MessageEventName
 from nr_openai_observability.call_vars import (
     set_conversation_id,
-    get_response_model,
-    get_completion_id,
 )
 
 class NewRelicCallbackHandler(BaseCallbackHandler):

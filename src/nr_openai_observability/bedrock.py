@@ -18,12 +18,6 @@ from nr_openai_observability.consts import (
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.call_vars import (
-    set_response_model,
-    get_response_model,
-    set_completion_id,
-    get_completion_id,
-    set_vendor,
-    get_vendor,
     set_ai_message_ids,
     create_ai_message_id,
     get_conversation_id,
@@ -437,22 +431,15 @@ def build_bedrock_result_message(
     model=None,
     vendor=None,
 ):
-    if model is not None:
-        set_response_model(model)
-    if vendor is not None:
-        set_vendor(vendor)
-    if completion_id is not None:
-        set_completion_id(completion_id)
-
     message = {
         "id": message_id,
         "content": content[:4095],
         "conversation_id": get_conversation_id(),
         "role": role,
-        "completion_id": get_completion_id(),
+        "completion_id": completion_id,
         "sequence": sequence,
-        **compat_fields(["model", "response.model"], get_response_model()),
-        "vendor": get_vendor(),
+        **compat_fields(["model", "response.model"], model),
+        "vendor": vendor,
         "ingest_source": "PythonSDK",
         **get_trace_details(),
     }

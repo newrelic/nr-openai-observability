@@ -10,12 +10,6 @@ logger = logging.getLogger("nr_openai_observability")
 
 from nr_openai_observability.call_vars import (
     get_conversation_id,
-    set_response_model,
-    get_response_model,
-    set_completion_id,
-    get_completion_id,
-    set_vendor,
-    get_vendor,
     get_conversation_id,
 )
 
@@ -29,13 +23,6 @@ def build_messages_events(
     start_seq_num=0,
     vendor=None
 ):
-    if model is not None:
-        set_response_model(model)
-    if vendor is not None:
-        set_vendor(vendor)
-    if completion_id is not None:
-        set_completion_id(completion_id)
-
     events = []
     for index, message in enumerate(messages):
         #Non-final messages (IE, user, system)
@@ -48,14 +35,14 @@ def build_messages_events(
             message_id = str(response_id) + "-" + str(index)
         currMessage = {
             "id": message_id,
-            "completion_id": get_completion_id(),
+            "completion_id": completion_id,
             "conversation_id": get_conversation_id(),
             "content": (message.get("content") or "")[:4095],
             "role": message.get("role"),
             "sequence": index + start_seq_num,
             # Grab the last populated model for langchain returned messages
-            **compat_fields(["model", "response.model"], get_response_model()),
-            "vendor": get_vendor(),
+            **compat_fields(["model", "response.model"], model),
+            "vendor": vendor,
             "ingest_source": "PythonSDK",
             **get_trace_details(),
         }
