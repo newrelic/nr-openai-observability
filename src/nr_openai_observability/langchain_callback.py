@@ -11,7 +11,11 @@ from nr_openai_observability.consts import (
     ToolEventName,
 )
 import newrelic.agent
-
+from nr_openai_observability.build_events import build_messages_events
+from nr_openai_observability.consts import MessageEventName
+from nr_openai_observability.call_vars import (
+    set_conversation_id,
+)
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
@@ -40,6 +44,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> Any:
         """Run when LLM starts running."""
+        self._save_metadata(kwargs.get("metadata", {}))
         model = self._get_model(serialized, **kwargs)
 
         tags = {
@@ -57,6 +62,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         """Run when Chat Model starts running."""
+        self._save_metadata(kwargs.get("metadata", {}))
         invocation_params = kwargs.get("invocation_params", {})
         model = self._get_model(serialized, **kwargs)
 
@@ -250,3 +256,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             model = invocation_params.get("_type", "")
 
         return model
+
+    def _save_metadata(self, metadata):
+        set_conversation_id(metadata.get("conversation_id", None))

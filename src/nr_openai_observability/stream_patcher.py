@@ -12,6 +12,11 @@ from nr_openai_observability.build_events import (
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
 from nr_openai_observability.openai_monitoring import monitor
+from nr_openai_observability.call_vars import (
+    create_ai_message_id,
+    get_ai_message_ids,
+    set_ai_message_ids
+)
 
 
 def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
@@ -127,6 +132,7 @@ def handle_start_completion(request, completion_id):
         request.get("messages", []),
         request.get("model") or request.get("engine"),
         completion_id,
+        vendor = "openAI",
     )
     for event in message_events:
         monitor.record_event(event, consts.MessageEventName)
@@ -152,9 +158,20 @@ def handle_finish_chat_completion(
         [final_message],
         last_chunk.model,
         completion_id,
+        None,
+        last_chunk.id,
         {"is_final_response": True},
         len(initial_messages),
+        vendor = "openAI",
     )[0]
+
+    ai_message_ids = get_ai_message_ids(response.get("id"))
+
+    ai_message_ids.append(
+        create_ai_message_id(response_message.get("id"), response.get("id"))
+    )
+
+    set_ai_message_ids(ai_message_ids, response.get("id"))
 
     monitor.record_event(response_message, consts.MessageEventName)
 

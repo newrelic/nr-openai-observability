@@ -17,6 +17,11 @@ from nr_openai_observability.consts import (
     TransactionBeginEventName,
 )
 from nr_openai_observability.error_handling_decorator import handle_errors
+from nr_openai_observability.call_vars import (
+    set_ai_message_ids,
+    create_ai_message_id,
+    get_conversation_id,
+)
 
 
 logger = logging.getLogger("nr_openai_observability")
@@ -352,9 +357,12 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
 
         if len(messages) > 0:
             messages[-1]["is_final_response"] = True
+            ai_message_id = create_ai_message_id(messages[-1].get("id"))
+            set_ai_message_ids([ai_message_id])
 
         summary = {
             "id": completion_id,
+            "conversation_id": get_conversation_id(),
             "timestamp": datetime.now(),
             "response_time": int(time_delta * 1000),
             "model": model,
@@ -426,6 +434,7 @@ def build_bedrock_result_message(
     message = {
         "id": message_id,
         "content": content[:4095],
+        "conversation_id": get_conversation_id(),
         "role": role,
         "completion_id": completion_id,
         "sequence": sequence,
