@@ -235,6 +235,13 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
         temperature,
         max_tokens,
     ) = get_bedrock_info(event_dict)
+
+    request_id = None
+    if None != response.get("ResponseMetadata") and None != response.get(
+        "ResponseMetadata"
+    ).get("RequestId"):
+        request_id = response.get("ResponseMetadata").get("RequestId")
+
     summary = {}
     messages = []
     model = "bedrock-unknown"
@@ -357,7 +364,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
 
         if len(messages) > 0:
             messages[-1]["is_final_response"] = True
-            ai_message_id = create_ai_message_id(messages[-1].get("id"))
+            ai_message_id = create_ai_message_id(messages[-1].get("id"), request_id)
             set_ai_message_ids([ai_message_id])
 
         summary = {

@@ -27,9 +27,9 @@ def set_conversation_id(id):
 def get_conversation_id():
     return conversation_id.get(None)
 
-def create_ai_message_id(message_id, response_id=None):
+def create_ai_message_id(message_id,  request_id=None):
     return {
         "conversation_id": get_conversation_id(),
-        "response_id": response_id,
+        "request_id": request_id,
         "message_id": message_id,
     }
