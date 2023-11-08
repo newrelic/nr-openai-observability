@@ -14,6 +14,7 @@ def initialization(
     metadata: Dict[str, Any] = {},
     metadata_callback: Optional[Callable] = None,
 ):
+    logger.info("Initializing New Relic AI Monitoring plugin")
     if application_name != "":
         logger.warn(
             "The application_name parameter is being deprecated in favor of deriving the application name from the Python Agent's configuration"
@@ -26,7 +27,17 @@ def initialization(
     perform_patch()
     return monitor
 
-def record_ai_feedback_event(rating, message_id, category = None, conversation_id = None, request_id = None, message = None):
-    event = build_ai_feedback_event(category, rating, message_id, conversation_id, request_id, message)
+
+def record_ai_feedback_event(
+    rating,
+    message_id,
+    category=None,
+    conversation_id=None,
+    request_id=None,
+    message=None,
+):
+    event = build_ai_feedback_event(
+        category, rating, message_id, conversation_id, request_id, message
+    )
 
     monitor.record_event(event, FeedbackEventName)
