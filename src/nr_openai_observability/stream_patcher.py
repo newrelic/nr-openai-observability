@@ -143,11 +143,12 @@ def handle_finish_chat_completion(
     last_chunk, request, response_time, final_message, completion_id
 ):
     initial_messages = request.get("messages", [])
+    response_headers = getattr(last_chunk, "_nr_response_headers")
 
     completion = build_stream_completion_events(
         last_chunk,
         request,
-        getattr(last_chunk, "_nr_response_headers"),
+        response_headers,
         final_message,
         response_time,
         completion_id,
@@ -168,7 +169,7 @@ def handle_finish_chat_completion(
     ai_message_ids = get_ai_message_ids(response.get("id"))
 
     ai_message_ids.append(
-        create_ai_message_id(response_message.get("id"), response.get("id"))
+        create_ai_message_id(response_message.get("id"), response_headers.get("x-request-id", ""))
     )
 
     set_ai_message_ids(ai_message_ids, response.get("id"))

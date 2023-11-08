@@ -171,11 +171,12 @@ def handle_start_completion(request, completion_id):
 def handle_finish_chat_completion(response, request, response_time, completion_id):
     initial_messages = request.get("messages", [])
     final_message = response.choices[0].message
+    response_headers = getattr(response, "_nr_response_headers")
 
     completion = build_completion_summary(
         response,
         request,
-        getattr(response, "_nr_response_headers"),
+        response_headers,
         response_time,
         final_message,
         completion_id,
@@ -196,7 +197,7 @@ def handle_finish_chat_completion(response, request, response_time, completion_i
     ai_message_ids = get_ai_message_ids(response.get("id"))
 
     ai_message_ids.append(
-        create_ai_message_id(response_message.get("id"), response.get("id"))
+        create_ai_message_id(response_message.get("id"), response_headers.get("x-request-id", ""))
     )
 
     set_ai_message_ids(ai_message_ids, response.get("id"))
