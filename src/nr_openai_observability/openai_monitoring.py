@@ -69,9 +69,9 @@ class OpenAIMonitoring:
                 logger.warning(f"Failed to run metadata callback: {ex}")
         transaction = newrelic.agent.current_transaction()
         if transaction != None:
-            newrelic.agent.record_ml_event(table, event_dict)
+            newrelic.agent.record_custom_event(table, event_dict)
         else:
-            newrelic.agent.record_ml_event(
+            newrelic.agent.record_custom_event(
                 table, event_dict, newrelic.agent.application()
             )
 
