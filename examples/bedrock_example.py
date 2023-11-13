@@ -106,7 +106,8 @@ def runCohere(bedrock_runtime):
     body = json.dumps({"prompt": prompt_data, "max_tokens": 200, "temperature": 0.75})
     # Cohere modelIds:
     # - cohere.command-text-v14
-    modelId = "cohere.command-text-v14"
+    # - cohere.command-light-text-v14
+    modelId = "cohere.command-light-text-v14"
     accept = "application/json"
     contentType = "application/json"
 
@@ -121,7 +122,7 @@ def runCohere(bedrock_runtime):
 
 
 @newrelic.agent.background_task()
-@newrelic.agent.function_trace(name="bedrock-embedding")
+@newrelic.agent.function_trace(name="titan-embedding")
 def runTitanEmbedding(bedrock_runtime):
     from pathlib import Path
 
@@ -146,6 +147,37 @@ def runTitanEmbedding(bedrock_runtime):
 
         print(f"input length {len(line)} generated {len(response_body.get('embedding'))} embeddings")
         break # only sending the first line for testing
+
+    print()
+
+@newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="cohere-embedding")
+def runCohereEmbedding(bedrock_runtime):
+    from pathlib import Path
+
+    # Create an embedding with Amazon Titan
+    data = Path("state_of_the_union.txt").read_text()
+
+    # process each line separated to stay within token limits
+    for line in data.splitlines():
+        if not line:
+            continue
+
+        body = json.dumps({"texts": [line], "input_type": "search_document"})
+        # Cohere embedding models
+        # - cohere.embed-english-v3
+        # - cohere.embed-multilingual-v3
+        modelId = "cohere.embed-english-v3"
+        accept = "application/json"
+        contentType = "application/json"
+
+        print(f'Test Embedding with Cohere model {modelId}')
+        response = bedrock_runtime.invoke_model(
+            body=body, modelId=modelId, accept=accept, contentType=contentType
+        )
+        response_body = json.loads(response.get("body").read())
+        print(f"input length {len(line)} generated {len(response_body.get('embeddings')[0])} embeddings")
+        break
 
     print()
 
@@ -175,6 +207,7 @@ if __name__ == "__main__":
     runAi21(bedrock_runtime)
     runCohere(bedrock_runtime)
     runTitanEmbedding(bedrock_runtime)
+    runCohereEmbedding(bedrock_runtime)
 
     # Allow the New Relic agent to send final messages as part of shutdown
     # The agent by default can send data up to a minute later
