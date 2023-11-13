@@ -249,7 +249,6 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
     if "modelId" in event_dict:
         model = event_dict["modelId"]
         vendor = "bedrock"
-        message_id = str(uuid.uuid4())
         tokens = input_tokens or 0
 
         if tokens and response_tokens:
@@ -264,17 +263,11 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
         if "body" in event_dict and "max_tokens_to_sample" in event_dict["body"]:
             max_tokens = event_dict["body"]["max_tokens_to_sample"]
 
-        if (
-            "ResponseMetadata" in response
-            and "RequestId" in response["ResponseMetadata"]
-        ):
-            message_id = response["ResponseMetadata"]["RequestId"]
-
         # input message
         messages.append(
             build_bedrock_result_message(
                 completion_id=completion_id,
-                message_id=message_id,
+                message_id=str(uuid.uuid4()),
                 content=input_message[:4095],
                 tokens=input_tokens,
                 role="user",
@@ -284,13 +277,21 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
             )
         )
 
+        response_message_id = str(uuid.uuid4())
+
+        if (
+            "ResponseMetadata" in response
+            and "RequestId" in response["ResponseMetadata"]
+        ):
+            response_message_id = response["ResponseMetadata"]["RequestId"]
+
         if "titan" in model:
             if isinstance(event_dict["results"], list):
                 for result in event_dict["results"]:
                     messages.append(
                         build_bedrock_result_message(
                             completion_id=completion_id,
-                            message_id=message_id,
+                            message_id=response_message_id,
                             content=result["outputText"],
                             tokens=result["tokenCount"],
                             role="assistant",
@@ -305,7 +306,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
                 messages.append(
                     build_bedrock_result_message(
                         completion_id=completion_id,
-                        message_id=message_id,
+                        message_id=response_message_id,
                         content=result["outputText"],
                         tokens=result["tokenCount"],
                         role="assistant",
@@ -319,7 +320,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
-                    message_id=message_id,
+                    message_id=response_message_id,
                     content=event_dict["completion"],
                     tokens=response_tokens,
                     role="assistant",
@@ -338,7 +339,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
                 messages.append(
                     build_bedrock_result_message(
                         completion_id=completion_id,
-                        message_id=message_id,
+                        message_id=response_message_id,
                         content=result["data"]["text"],
                         tokens=message_tokens,
                         role="assistant",
@@ -353,7 +354,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
                 messages.append(
                     build_bedrock_result_message(
                         completion_id=completion_id,
-                        message_id=message_id,
+                        message_id=response_message_id,
                         content=result["text"],
                         role="assistant",
                         sequence=len(messages),
