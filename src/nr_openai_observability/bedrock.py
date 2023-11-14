@@ -374,7 +374,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
             messages.append(
                 build_bedrock_result_message(
                     completion_id=completion_id,
-                    message_id=message_id,
+                    message_id=response_message_id,
                     content=event_dict["generation"],
                     tokens=response_tokens,
                     role="assistant",
