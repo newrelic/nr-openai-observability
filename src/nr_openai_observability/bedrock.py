@@ -100,7 +100,7 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     timestamp = time.time()
     result, time_delta = None, None
     model = kwargs.get("modelId") or ""
-    embedding = "titan-embed" in model
+    embedding = "titan-embed" in model or "cohere.embed" in model
 
     completion_id = str(uuid.uuid4())
 
@@ -118,7 +118,7 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
             result = original_fn(*args, **kwargs)
             time_delta = time.time() - timestamp
     except Exception as error:
-        build_completion_summary_for_error(error, completion_id, **kwargs)
+        build_bedrock_completion_summary_for_error(error, completion_id)
         raise result
 
     # print the HTTP body
@@ -141,7 +141,7 @@ def patcher_bedrock_create_completion(original_fn, *args, **kwargs):
     return result
 
 
-def build_completion_summary_for_error(error, completion_id, **kwargs):
+def build_bedrock_completion_summary_for_error(error, completion_id):
     logger.error(f"error invoking bedrock function: {error}")
 
     completion = {
@@ -192,25 +192,33 @@ def handle_bedrock_create_completion(
         monitor.record_event(summary, SummaryEventName)
         monitor.record_event(transaction_begin_event, TransactionBeginEventName)
 
-    except Exception as error:
-        build_completion_summary_for_error(error, **kwargs)
+    except BaseException as error:
+        build_bedrock_completion_summary_for_error(error, completion_id)
         raise error
 
 
 def handle_bedrock_embedding(result, contents, time_delta, **kwargs):
     embedding_id = str(uuid.uuid4())
-    response_body = json.loads(contents)
     input_body = json.loads(kwargs.get("body"))
+    model = kwargs.get("modelId")
     request_id = None
     if None != result.get("ResponseMetadata") and None != result.get(
         "ResponseMetadata"
     ).get("RequestId"):
         request_id = result.get("ResponseMetadata").get("RequestId")
 
+    text = ""
+
+    if "titan-embed" in model:
+        text = input_body.get("inputText")
+    elif "cohere.embed" in model:
+        for t in input_body.get("texts"):
+            text += f"{t}\n"
+
     embedding = {
         "id": embedding_id,
         "request_id": request_id,
-        "input": input_body.get("inputText")[:4095],
+        "input": text[:4095],
         "timestamp": datetime.now(),
         "request.model": kwargs.get("modelId"),
         "response.model": kwargs.get("modelId"),
