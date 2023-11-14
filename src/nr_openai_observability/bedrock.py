@@ -370,6 +370,20 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
                         vendor=vendor,
                     )
                 )
+        elif "meta.llama2" in model:
+            messages.append(
+                build_bedrock_result_message(
+                    completion_id=completion_id,
+                    message_id=message_id,
+                    content=event_dict["generation"],
+                    tokens=response_tokens,
+                    role="assistant",
+                    sequence=len(messages),
+                    stop_reason=event_dict["stop_reason"],
+                    model=model,
+                    vendor=vendor,
+                )
+            )
 
         if len(messages) > 0:
             messages[-1]["is_final_response"] = True
@@ -498,7 +512,7 @@ def get_bedrock_info(event_dict):
 
             input_message = event_dict["body"]["inputText"]
             input_tokens = event_dict["inputTextTokenCount"]
-        if "claude" in model:
+        elif "claude" in model:
             from anthropic import _tokenizers
 
             input_message = event_dict["body"]["prompt"]
@@ -512,7 +526,7 @@ def get_bedrock_info(event_dict):
 
             encoded = tokenizer.encode(event_dict["completion"])
             response_tokens = len(encoded)
-        if "ai21.j2" in model:
+        elif "ai21.j2" in model:
             input_message = event_dict["prompt.text"]
             input_tokens = len(event_dict["prompt.tokens"])
             response_tokens = 0
@@ -524,10 +538,17 @@ def get_bedrock_info(event_dict):
 
                 if "data" in result and "tokens" in result["data"]:
                     response_tokens += len(result["data"]["tokens"])
-        if "cohere.command" in model:
+        elif "cohere.command" in model:
             input_message = event_dict["prompt"]
             default_temp = 0.9
             default_max_tokens = 20
+        elif "meta.llama2" in model:
+            input_message = event_dict["body"]["prompt"]
+            input_tokens = event_dict["prompt_token_count"]
+            response_tokens = event_dict["generation_token_count"]
+            stop_reason = event_dict["stop_reason"]
+            default_temp = 0.5
+            default_max_tokens = 512
 
     return (
         input_message,
