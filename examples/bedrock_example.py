@@ -122,6 +122,31 @@ def runCohere(bedrock_runtime):
 
 
 @newrelic.agent.background_task()
+@newrelic.agent.function_trace(name="meta")
+def runMeta(bedrock_runtime):
+    # Run a query with Meta
+    prompt_data = (
+        """Write me a blog about making strong business decisions as a leader."""
+    )
+
+    body = json.dumps({"prompt": prompt_data, "max_gen_len": 200, "temperature": 0.75})
+    # Meta modelIds:
+    # - meta.llama2-13b-chat-v1
+    modelId = "meta.llama2-13b-chat-v1"
+    accept = "application/json"
+    contentType = "application/json"
+
+    print(f"Test with Meta model {modelId}")
+    response = bedrock_runtime.invoke_model(
+        body=body, modelId=modelId, accept=accept, contentType=contentType
+    )
+    response_body = json.loads(response.get("body").read())
+
+    print(response_body.get("generation"))
+    print()
+
+
+@newrelic.agent.background_task()
 @newrelic.agent.function_trace(name="titan-embedding")
 def runTitanEmbedding(bedrock_runtime):
     from pathlib import Path
@@ -206,6 +231,7 @@ if __name__ == "__main__":
     runAnthropic(bedrock_runtime)
     runAi21(bedrock_runtime)
     runCohere(bedrock_runtime)
+    runMeta(bedrock_runtime)
     runTitanEmbedding(bedrock_runtime)
     runCohereEmbedding(bedrock_runtime)
 
