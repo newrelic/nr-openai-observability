@@ -33,11 +33,22 @@ def build_messages_events(
         elif response_id is not None:
             #OpenAI
             message_id = str(response_id) + "-" + str(index)
+        content = message.get("content")
+
+        if isinstance(content, list):
+            # content is a list when returned from the OpenAI Vision model
+            content = ""
+            for part in message.get("content"):
+                if "text" in part:
+                    content += f"{part.get('text')}\n"
+                if "image_url" in part:
+                    content += f"image: {part.get('image_url').get('url')}\n"
+
         currMessage = {
             "id": message_id,
             "completion_id": completion_id,
             "conversation_id": get_conversation_id(),
-            "content": (message.get("content") or "")[:4095],
+            "content": (content or "")[:4095],
             "role": message.get("role"),
             "sequence": index + start_seq_num,
             # Grab the last populated model for langchain returned messages
@@ -212,7 +223,7 @@ def build_completion_summary(
         "response.model": response.model,
         "response.id": response.id,
         **compat_fields(
-            ["organization", "response.organization"], response.organization
+            ["organization", "response.organization"], response.get("organization")
         ),
         **compat_fields(
             ["usage.completion_tokens", "response.usage.completion_tokens"],
@@ -234,9 +245,9 @@ def build_completion_summary(
         ),
         **compat_fields(
             ["finish_reason", "response.choices.finish_reason"],
-            response.choices[0].finish_reason,
+            response.choices[0].get("finish_reason") or response.choices[0].get("finish_details").get("stop") or "",
         ),
-        **compat_fields(["api_type", "response.api_type"], response.api_type),
+        **compat_fields(["api_type", "response.api_type"], response.get("api_type")),
         **compat_fields(
             ["api_version", "response.headers.llmVersion"],
             response_headers.get("openai-version"),
