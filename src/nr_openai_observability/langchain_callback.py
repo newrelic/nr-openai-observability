@@ -26,6 +26,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """Initialize callback handler."""
         self.application_name = application_name
+        self.parent_trace = newrelic.agent.current_trace()
 
         self.new_relic_monitor = monitor.initialization(
             application_name=application_name,
@@ -207,6 +208,11 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             trace.add_custom_attribute(key, val)
 
         stack = self.trace_stacks.get(run_id, [])
+
+        trace.parent = self.parent_trace
+        if len(stack):
+            trace.parent = stack[-1].parent
+
         stack.append(trace)
 
         self.trace_stacks[run_id] = stack
@@ -235,8 +241,17 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                     or trace.guid
                 )
                 attrs["guid"] = trace.guid
-                attrs["parent.id"] = None
                 attrs["duration.ms"] = trace.duration * 1000
+
+                parent_trace_id = (
+                    getattr(trace.parent, "trace_id", None)
+                    or getattr(trace.parent, "guid", None)
+                    or getattr(self.parent_trace, "trace_id", None)
+                    or getattr(self.parent_trace, "guid", None)
+                    or trace.guid
+                    )
+                attrs["parent.id"] = parent_trace_id
+
 
                 self.new_relic_monitor.record_event(attrs, event_name)
 
