@@ -1,4 +1,5 @@
 import re
+import logging
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -11,11 +12,12 @@ from nr_openai_observability.consts import (
     ToolEventName,
 )
 import newrelic.agent
-from nr_openai_observability.build_events import build_messages_events
-from nr_openai_observability.consts import MessageEventName
+from nr_openai_observability.build_events import get_trace_details
 from nr_openai_observability.call_vars import (
     set_conversation_id,
 )
+
+logger = logging.getLogger("nr_openai_observability")
 
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
@@ -27,7 +29,6 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """Initialize callback handler."""
         self.application_name = application_name
-        self.parent_trace = newrelic.agent.current_trace()
 
         self.new_relic_monitor = monitor.initialization(
             application_name=application_name,
@@ -35,7 +36,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         )
         self.langchain_callback_metadata = langchain_callback_metadata
         self.tool_invocation_counter = 0
-        self.trace_stacks = {}
+        self.trace_segments = {}
         self.new_relic_monitor.record_library("langchain", "LangChain")
 
     def get_and_update_tool_invocation_counter(self):
@@ -54,7 +55,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "model_name": model,
         }
         trace = newrelic.agent.FunctionTrace(name="AI/LangChain/RunLLM", terminal=False)
-        self._start_segment(kwargs["run_id"], trace, tags)
+        self._start_segment(kwargs["run_id"], kwargs["parent_run_id"], trace, tags)
 
     # TODO - Why is there no corresponding end method for this callback? How do we set up spans without this?
     def on_chat_model_start(
@@ -82,7 +83,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         trace = newrelic.agent.FunctionTrace(
             name="AI/LangChain/RunChatModel", terminal=False
         )
-        self._start_segment(kwargs["run_id"], trace, tags)
+        self._start_segment(kwargs["run_id"], kwargs["parent_run_id"], trace, tags)
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""
@@ -135,7 +136,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "start_tags": str(kwargs.get("tags")),
             "start_metadata": str(kwargs.get("metadata")),
         }
-        self._start_segment(kwargs["run_id"], trace, tags)
+        self._start_segment(kwargs["run_id"], kwargs["parent_run_id"], trace, tags)
 
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
@@ -169,7 +170,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             "tool_description": serialized.get("description"),
             "tool_input": input_str,
         }
-        self._start_segment(kwargs["run_id"], trace, tags)
+        self._start_segment(kwargs["run_id"], kwargs["parent_run_id"], trace, tags)
 
     def on_tool_end(self, output: str, **kwargs: Any) -> Any:
         """Run when tool ends running."""
@@ -199,7 +200,13 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         """Run on agent end."""
         # self._finish_segment(kwargs["run_id"])
 
-    def _start_segment(self, run_id, trace, tags={}):
+    def _start_segment(self, run_id, parent_run_id, trace, tags={}):
+        potential_parent = self.trace_segments.get(parent_run_id, None)
+        if not potential_parent:
+            potential_parent = newrelic.agent.current_trace()
+
+        trace.parent = potential_parent
+
         trace.__enter__()
         if self.langchain_callback_metadata:
             tags = tags or {}
@@ -208,27 +215,15 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         for key, val in tags.items():
             trace.add_custom_attribute(key, val)
 
-        stack = self.trace_stacks.get(run_id, [])
-
-        stack.append(trace)
-
-        self.trace_stacks[run_id] = stack
+        self.trace_segments[run_id] = trace
 
     def _finish_segment(self, run_id, tags={}, event_name=None):
-        stack = self.trace_stacks.get(run_id, [])
-        if stack != None and len(stack) != 0:
-            trace = stack.pop()
-
-            if len(stack) == 0:
-                self.trace_stacks.pop(run_id, None)
-
+        trace = self.trace_segments.pop(run_id, None)
+        if trace != None:
             for key, val in tags.items():
                 trace.add_custom_attribute(key, val)
 
             trace.__exit__(None, None, None)
-
-            if not trace.parent:
-                trace.parent = self.parent_trace
 
             if event_name:
                 attrs = trace.user_attributes
@@ -236,10 +231,8 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
                 if tags:
                     attrs.update(tags)
 
-                attrs["trace.id"] = (
-                    getattr(newrelic.agent.current_transaction(), "trace_id", None)
-                    or trace.guid
-                )
+                attrs.update(get_trace_details())
+
                 attrs["guid"] = trace.guid
                 attrs["duration.ms"] = trace.duration * 1000
 
