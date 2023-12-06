@@ -15,7 +15,7 @@ from nr_openai_observability.openai_monitoring import monitor
 from nr_openai_observability.call_vars import (
     create_ai_message_id,
     get_ai_message_ids,
-    set_ai_message_ids
+    set_ai_message_ids,
 )
 
 
@@ -132,7 +132,7 @@ def handle_start_completion(request, completion_id):
         request.get("messages", []),
         request.get("model") or request.get("engine"),
         completion_id,
-        vendor = "openAI",
+        vendor="openAI",
     )
     for event in message_events:
         monitor.record_event(event, consts.MessageEventName)
@@ -163,16 +163,18 @@ def handle_finish_chat_completion(
         last_chunk.id,
         {"is_final_response": True},
         len(initial_messages),
-        vendor = "openAI",
+        vendor="openAI",
     )[0]
 
-    ai_message_ids = get_ai_message_ids(response.get("id"))
+    ai_message_ids = get_ai_message_ids(last_chunk.get("id"))
 
     ai_message_ids.append(
-        create_ai_message_id(response_message.get("id"), response_headers.get("x-request-id", ""))
+        create_ai_message_id(
+            response_message.get("id"), response_headers.get("x-request-id", "")
+        )
     )
 
-    set_ai_message_ids(ai_message_ids, response.get("id"))
+    set_ai_message_ids(ai_message_ids, last_chunk.get("id"))
 
     monitor.record_event(response_message, consts.MessageEventName)
 

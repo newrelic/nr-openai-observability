@@ -1,4 +1,5 @@
 import re
+import logging
 from typing import Any, Dict, List, Union
 
 from langchain.callbacks.base import BaseCallbackHandler
@@ -11,11 +12,13 @@ from nr_openai_observability.consts import (
     ToolEventName,
 )
 import newrelic.agent
-from nr_openai_observability.build_events import build_messages_events
-from nr_openai_observability.consts import MessageEventName
+from nr_openai_observability.build_events import get_trace_details
 from nr_openai_observability.call_vars import (
     set_conversation_id,
 )
+
+logger = logging.getLogger("nr_openai_observability")
+
 
 class NewRelicCallbackHandler(BaseCallbackHandler):
     def __init__(
@@ -33,7 +36,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         )
         self.langchain_callback_metadata = langchain_callback_metadata
         self.tool_invocation_counter = 0
-        self.trace_stacks = {}
+        self.trace_segments = {}
         self.new_relic_monitor.record_library("langchain", "LangChain")
 
     def get_and_update_tool_invocation_counter(self):
@@ -206,41 +209,44 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
         for key, val in tags.items():
             trace.add_custom_attribute(key, val)
 
-        stack = self.trace_stacks.get(run_id, [])
-        stack.append(trace)
+        if not run_id:
+            logger.error(
+                "Tracing assertion failed: No run ID provided for LangChain segment"
+            )
+            return
+        if run_id in self.trace_segments:
+            logger.error(
+                f"Tracing assertion failed: Attempting to record a span for run {run_id} but ID was already present. LangChain may be reporting a duplicate run ID"
+            )
+            return
 
-        self.trace_stacks[run_id] = stack
+        self.trace_segments[run_id] = trace
 
     def _finish_segment(self, run_id, tags={}, event_name=None):
-        stack = self.trace_stacks.get(run_id, [])
-        if stack != None and len(stack) != 0:
-            trace = stack.pop()
+        trace = self.trace_segments.pop(run_id, None)
+        if not trace:
+            logger.error(
+                f"Tracing assertion failed: Tried to close LangChain segment with ID {run_id} but it was not present"
+            )
+            return
 
-            if len(stack) == 0:
-                self.trace_stacks.pop(run_id, None)
+        for key, val in tags.items():
+            trace.add_custom_attribute(key, val)
 
-            for key, val in tags.items():
-                trace.add_custom_attribute(key, val)
+        trace.__exit__(None, None, None)
 
-            trace.__exit__(None, None, None)
+        if event_name:
+            attrs = trace.user_attributes
 
-            if event_name:
-                attrs = trace.user_attributes
+            if tags:
+                attrs.update(tags)
 
-                if tags:
-                    attrs.update(tags)
+            attrs.update(get_trace_details())
 
-                attrs["trace.id"] = (
-                    getattr(newrelic.agent.current_transaction(), "trace_id", None)
-                    or trace.guid
-                )
-                attrs["guid"] = trace.guid
-                attrs["parent.id"] = None
-                attrs["duration.ms"] = trace.duration * 1000
+            attrs["span_id"] = trace.guid
+            attrs["duration.ms"] = trace.duration * 1000
 
-                self.new_relic_monitor.record_event(attrs, event_name)
-
-            return trace
+            self.new_relic_monitor.record_event(attrs, event_name)
 
     def _get_model(self, serialized: Dict[str, Any], **kwargs: Any) -> str:
         invocation_params = kwargs.get("invocation_params", {})
@@ -259,3 +265,9 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
 
     def _save_metadata(self, metadata):
         set_conversation_id(metadata.get("conversation_id", None))
+
+    def __del__(self):
+        if len(self.trace_segments.keys()) > 0:
+            logger.error(
+                "Tracing assertion failed: Some LangChain spans were still open when callback handler was destroyed. The associated transaction may be fragmented"
+            )
