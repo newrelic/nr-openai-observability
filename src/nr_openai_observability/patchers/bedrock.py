@@ -9,7 +9,7 @@ from datetime import datetime
 
 from nr_openai_observability.build_events import compat_fields, get_trace_details
 from nr_openai_observability.monitor import monitor
-from nr_openai_observability.patcher import _patched_call
+from nr_openai_observability.patcher import patched_call
 from nr_openai_observability.consts import (
     EmbeddingEventName,
     MessageEventName,
@@ -27,39 +27,6 @@ from nr_openai_observability.call_vars import (
 logger = logging.getLogger("nr_openai_observability")
 logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.INFO)
-
-
-def perform_patch_bedrock():
-    from newrelic.common.package_version_utils import get_package_version_tuple
-
-    botocore_version = get_package_version_tuple("botocore")
-    if botocore_version == None:
-        return
-
-    (major, minor, revision) = botocore_version
-    if major < 1 or minor < 31 or (minor == 31 and revision < 57):
-        logger.warning(f"minimum version of botocore that supports Bedrock is 1.31.57")
-        return
-
-    boto3_version = get_package_version_tuple("boto3")
-    if boto3_version == None:
-        return
-
-    (major, minor, revision) = boto3_version
-    if major < 1 or minor < 28 or (minor == 28 and revision < 57):
-        logger.warning("minimum version of boto3 that supports Bedrock is 1.28.57")
-        return
-
-    import botocore
-
-    try:
-        botocore.client.ClientCreator.create_client = _patched_call(
-            botocore.client.ClientCreator.create_client, patcher_aws_create_api
-        )
-    except AttributeError as error:
-        logger.debug(
-            f"failed to instrument botocore.client.ClientCreator.create_client: {error}"
-        )
 
 
 def patcher_aws_create_api(original_fn, *args, **kwargs):
@@ -564,3 +531,36 @@ def bind__create_api_method(
     py_operation_name, operation_name, service_model, *args, **kwargs
 ):
     return (py_operation_name, service_model)
+
+
+def perform_patch_bedrock():
+    from newrelic.common.package_version_utils import get_package_version_tuple
+
+    botocore_version = get_package_version_tuple("botocore")
+    if botocore_version == None:
+        return
+
+    (major, minor, revision) = botocore_version
+    if major < 1 or minor < 31 or (minor == 31 and revision < 57):
+        logger.warning(f"minimum version of botocore that supports Bedrock is 1.31.57")
+        return
+
+    boto3_version = get_package_version_tuple("boto3")
+    if boto3_version == None:
+        return
+
+    (major, minor, revision) = boto3_version
+    if major < 1 or minor < 28 or (minor == 28 and revision < 57):
+        logger.warning("minimum version of boto3 that supports Bedrock is 1.28.57")
+        return
+
+    import botocore
+
+    try:
+        botocore.client.ClientCreator.create_client = patched_call(
+            botocore.client.ClientCreator.create_client, patcher_aws_create_api
+        )
+    except AttributeError as error:
+        logger.debug(
+            f"failed to instrument botocore.client.ClientCreator.create_client: {error}"
+        )
