@@ -130,7 +130,10 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
             name="AI/LangChain/RunChain", terminal=False
         )
         tags = {
-            "input": inputs.get("input") or inputs.get("human_input") or "",
+            "input": inputs.get("input")
+            or inputs.get("human_input")
+            or inputs.get("content")
+            or "",
             "chat_history": chat_history,
             "run_id": str(kwargs.get("run_id")),
             "start_tags": str(kwargs.get("tags")),
@@ -141,7 +144,7 @@ class NewRelicCallbackHandler(BaseCallbackHandler):
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         """Run when chain ends running."""
         tags = {
-            "outputs": outputs.get("output"),
+            "output": outputs.get("text", None) or outputs.get("output", None),
             "run_id": str(kwargs.get("run_id")),
             "end_tags": str(kwargs.get("tags")),
         }
