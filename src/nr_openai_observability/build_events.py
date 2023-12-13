@@ -13,31 +13,34 @@ from nr_openai_observability.call_vars import (
     get_conversation_id,
 )
 
+
 def build_messages_events(
-    messages, 
-    model, 
-    completion_id, 
-    message_id_override=None, 
-    response_id=None, 
-    tags={}, 
+    messages,
+    model,
+    completion_id,
+    message_id_override=None,
+    response_id=None,
+    tags={},
     start_seq_num=0,
-    vendor=None
+    vendor=None,
 ):
     events = []
     for index, message in enumerate(messages):
-        #Non-final messages (IE, user, system)
+        # Non-final messages (IE, user, system)
         message_id = str(uuid.uuid4())
         if message_id_override is not None:
-            #LangChain
+            # LangChain
             message_id = message_id_override
         elif response_id is not None:
-            #OpenAI
+            # OpenAI
             message_id = str(response_id) + "-" + str(index)
+        content = message.get("content") or ""
         currMessage = {
             "id": message_id,
             "completion_id": completion_id,
             "conversation_id": get_conversation_id(),
-            "content": (message.get("content") or "")[:4095],
+            "content": content[:4095],
+            "content_length": len(content),
             "role": message.get("role"),
             "sequence": index + start_seq_num,
             # Grab the last populated model for langchain returned messages
@@ -189,7 +192,6 @@ def build_stream_completion_events(
             ["api_version", "response.headers.llmVersion"],
             response_headers.get("openai-version"),
         ),
-        "response": (message.get("content") or "")[:4095],
         "stream": True,
         **get_trace_details(),
     }
@@ -247,7 +249,6 @@ def build_completion_summary(
             ["number_of_messages", "response.number_of_messages"],
             len(request.get("messages", [])) + len(response.choices),
         ),
-        "response": (final_message.get("content") or "")[:4095],
         "stream": False,
         **get_trace_details(),
     }
@@ -374,8 +375,11 @@ def get_trace_details():
 
 def compat_fields(keys, value):
     return dict.fromkeys(keys, value)
-    
-def build_ai_feedback_event(category, rating, message_id, conversation_id, request_id, message):
+
+
+def build_ai_feedback_event(
+    category, rating, message_id, conversation_id, request_id, message
+):
     feedback_event = {
         "id": str(uuid.uuid4()),
         "conversation_id": conversation_id,

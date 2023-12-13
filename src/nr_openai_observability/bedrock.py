@@ -276,7 +276,7 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
             build_bedrock_result_message(
                 completion_id=completion_id,
                 message_id=str(uuid.uuid4()),
-                content=input_message[:4095],
+                content=input_message,
                 tokens=input_tokens,
                 role="user",
                 sequence=len(messages),
@@ -405,7 +405,6 @@ def build_bedrock_events(response, event_dict, completion_id, time_delta):
             **compat_fields(
                 ["number_of_messages", "response.number_of_messages"], len(messages)
             ),
-            "response": messages[-1]["content"][:4095],
             **get_trace_details(),
         }
 
@@ -464,6 +463,7 @@ def build_bedrock_result_message(
     message = {
         "id": message_id,
         "content": content[:4095],
+        "content_length": len(content),
         "conversation_id": get_conversation_id(),
         "role": role,
         "completion_id": completion_id,
