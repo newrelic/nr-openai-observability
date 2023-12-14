@@ -1,25 +1,40 @@
 import contextvars
+import logging
+
+from newrelic.api.transaction import current_transaction
+
+logger = logging.getLogger("nr_openai_observability")
 
 conversation_id = contextvars.ContextVar('conversation_id')
-ai_message_ids = contextvars.ContextVar('ai_message_ids')
 
 def get_ai_message_ids(response_id=None):
+    transaction = current_transaction()
+
+    if transaction is None:
+        logger.debug("AI message IDs need a transaction to be retrieved.")
+
+    ai_message_ids = getattr(transaction, "_ai_sdk_message_ids", {})
     if response_id is not None:
         #OpenAI
-        return ai_message_ids.get({}).get(response_id, [])
+        return ai_message_ids.get(response_id, [])
     else:
         #Bedrock
-        return ai_message_ids.get([])
+        return ai_message_ids
 
 def set_ai_message_ids(message_ids, response_id=None):
+    transaction = current_transaction()
+    if transaction is None:
+        logger.debug("AI message IDs need a transaction to be stored.")
+        return
+
     if response_id is not None:
         #OpenAI
-        current_ids = ai_message_ids.get({})
+        current_ids = getattr(transaction, "_ai_sdk_message_ids", {})
         current_ids[response_id] = message_ids
-        ai_message_ids.set(current_ids)
+        transaction._ai_sdk_message_ids = current_ids
     else:
         #Bedrock
-        ai_message_ids.set(message_ids)
+        transaction._ai_sdk_message_ids = message_ids
 
 def set_conversation_id(id):
     conversation_id.set(id)
