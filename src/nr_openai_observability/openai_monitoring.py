@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional
 import newrelic.agent
 
 import nr_openai_observability.consts as consts
+from nr_openai_observability.patcher import perform_patch
 
 logger = logging.getLogger("nr_openai_observability")
 
@@ -49,6 +50,7 @@ class OpenAIMonitoring:
             self.metadata_callback = metadata_callback
             self._start()
             self.initialized = True
+            perform_patch()
 
     # initialize event thread
     def _start(self):

@@ -23,10 +23,19 @@ def initialization(
         metadata,
         metadata_callback,
     )
-    perform_patch()
     return monitor
 
-def record_ai_feedback_event(rating, message_id, category = None, conversation_id = None, request_id = None, message = None):
-    event = build_ai_feedback_event(category, rating, message_id, conversation_id, request_id, message)
+
+def record_ai_feedback_event(
+    rating,
+    message_id,
+    category=None,
+    conversation_id=None,
+    request_id=None,
+    message=None,
+):
+    event = build_ai_feedback_event(
+        category, rating, message_id, conversation_id, request_id, message
+    )
 
     monitor.record_event(event, FeedbackEventName)

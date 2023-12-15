@@ -49,7 +49,7 @@ def patcher_aws_create_api(original_fn, *args, **kwargs):
                 setattr(
                     response,
                     bedrock_method,
-                    _patched_call(
+                    patched_call(
                         original_invoke_model, patcher_bedrock_create_completion
                     ),
                 )

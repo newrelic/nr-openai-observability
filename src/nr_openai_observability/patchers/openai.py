@@ -296,7 +296,46 @@ def handle_create_embedding(response, request, error, response_time):
     return response
 
 
+MIN_MAJOR_VERSION = 0
+MIN_MINOR_VERSION = 26
+
+MAX_MAJOR_VERSION = 1
+MIN_MAJOR_VERSION = 0
+
+
 def perform_patch_openai():
+    from newrelic.common.package_version_utils import get_package_version_tuple
+
+    openai_version = get_package_version_tuple("openai")
+    newrelic_version = get_package_version_tuple("newrelic")
+    if openai_version == None or newrelic_version == None:
+        return
+
+    (major, minor, revision) = openai_version
+    too_new = major > 1
+    requires_agent = major == 1
+    agent_or_plugin = major == 0 and minor >= 26
+    too_old = major == 0 and minor < MIN_MINOR_VERSION
+
+    supported_versions_msg = f"Versions between v{MIN_MAJOR_VERSION}.${MIN_MINOR_VERSION}.0 and <{MAX_MAJOR_VERSION + 1}.0 are supported"
+    if too_new:
+        logger.error(
+            f"Detected OpenAI v{major}.{minor}.{revision} which is not supported yet. {supported_versions_msg}"
+        )
+        return
+
+    if too_old:
+        logger.error(
+            f"Detected OpenAI v{major}.{minor}.{revision} which too old. {supported_versions_msg}"
+        )
+        return
+
+    if requires_agent:
+        # TODO - Check if _anything_ is instrumented. If not, raise a different error. The customer is probably trying to instrument but failing because of a
+        # mismatch between the agent version and plugin
+        logger.warn(f"OpenAI streaming is not yet supported in v1.0")
+        return
+
     try:
         openai.Embedding.create = patched_call(
             openai.Embedding.create, patcher_create_embedding
