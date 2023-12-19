@@ -79,7 +79,7 @@ def perform_patch_langchain_vectorstores():
         try:
             cls = getattr(langchain.vectorstores, vector_store)
             cls.similarity_search = patched_call(
-                cls.similarity_search, patcher_similarity_search
+                cls, "similarity_search", patcher_similarity_search
             )
         except AttributeError:
             pass

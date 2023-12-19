@@ -5,10 +5,11 @@ from argparse import ArgumentError
 logger = logging.getLogger("nr_openai_observability")
 
 
-def patched_call(original_fn, patched_fn, stream_patched_fn=None):
+def patched_call(parent_class, method_name, patched_fn, stream_patched_fn=None):
+    original_fn = getattr(parent_class, method_name)
     patched_by_plugin = hasattr(original_fn, "is_patched_by_monitor")
     # TODO - This seems to work but it feels like a bit of a hack. Need to coordinate on a better approach with agent team
-    patched_by_agent = original_fn.__repr__().startswith("<_NRBoundFunctionWrapper")
+    patched_by_agent = getattr(parent_class, "_nr_wrapped", False)
 
     if patched_by_plugin:
         return original_fn
@@ -31,9 +32,10 @@ def patched_call(original_fn, patched_fn, stream_patched_fn=None):
     return _inner_patch
 
 
-def patched_call_async(original_fn, patched_fn, stream_patched_fn=None):
+def patched_call_async(parent_class, method_name, patched_fn, stream_patched_fn=None):
+    original_fn = getattr(parent_class, method_name)
     patched_by_plugin = hasattr(original_fn, "is_patched_by_monitor")
-    patched_by_agent = original_fn.__repr__().startswith("<_NRBoundFunctionWrapper")
+    patched_by_agent = getattr(parent_class, "_nr_wrapped", False)
 
     if patched_by_plugin:
         return original_fn

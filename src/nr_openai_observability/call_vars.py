@@ -9,7 +9,7 @@ conversation_id = contextvars.ContextVar("conversation_id")
 
 
 def get_ai_message_ids(response_id=None):
-    if getattr(newrelic.agent, "get_llm_message_ids"):
+    if getattr(newrelic.agent, "get_llm_message_ids", None):
         message_ids = newrelic.agent.get_llm_message_ids(response_id)
         if len(message_ids) > 0:
             return message_ids

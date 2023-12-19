@@ -50,7 +50,7 @@ def patcher_aws_create_api(original_fn, *args, **kwargs):
                     response,
                     bedrock_method,
                     patched_call(
-                        original_invoke_model, patcher_bedrock_create_completion
+                        response, bedrock_method, patcher_bedrock_create_completion
                     ),
                 )
             else:
@@ -558,7 +558,7 @@ def perform_patch_bedrock():
 
     try:
         botocore.client.ClientCreator.create_client = patched_call(
-            botocore.client.ClientCreator.create_client, patcher_aws_create_api
+            botocore.client.ClientCreator, "create_client", patcher_aws_create_api
         )
     except AttributeError as error:
         logger.debug(

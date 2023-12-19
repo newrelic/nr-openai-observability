@@ -338,35 +338,36 @@ def perform_patch_openai():
 
     try:
         openai.Embedding.create = patched_call(
-            openai.Embedding.create, patcher_create_embedding
+            openai.Embedding, "create", patcher_create_embedding
         )
     except AttributeError:
         pass
 
     try:
         openai.Embedding.acreate = patched_call_async(
-            openai.Embedding.acreate, patcher_create_embedding_async
+            openai.Embedding, "acreate", patcher_create_embedding_async
         )
     except AttributeError:
         pass
 
     try:
         openai.Completion.create = patched_call(
-            openai.Completion.create, patcher_create_completion
+            openai.Completion, "create", patcher_create_completion
         )
     except AttributeError:
         pass
 
     try:
         openai.Completion.acreate = patched_call_async(
-            openai.Completion.acreate, patcher_create_completion_async
+            openai.Completion, "acreate", patcher_create_completion_async
         )
     except AttributeError:
         pass
 
     try:
         openai.ChatCompletion.create = patched_call(
-            openai.ChatCompletion.create,
+            openai.ChatCompletion,
+            "create",
             patcher_create_chat_completion,
             patcher_create_chat_completion_stream,
         )
@@ -375,7 +376,8 @@ def perform_patch_openai():
 
     try:
         openai.ChatCompletion.acreate = patched_call_async(
-            openai.ChatCompletion.acreate,
+            openai.ChatCompletion,
+            "acreate",
             patcher_create_chat_completion_async,
             patcher_create_chat_completion_stream_async,
         )
@@ -384,7 +386,7 @@ def perform_patch_openai():
 
     try:
         openai.util.convert_to_openai_object = patched_call(
-            openai.util.convert_to_openai_object, patcher_convert_to_openai_object
+            openai.util, "convert_to_openai_object", patcher_convert_to_openai_object
         )
     except AttributeError:
         pass
