@@ -5,11 +5,20 @@ from argparse import ArgumentError
 logger = logging.getLogger("nr_openai_observability")
 
 
-def patched_call(parent_class, method_name, patched_fn, stream_patched_fn=None):
+def patched_call(
+    parent_class,
+    method_name,
+    patched_fn,
+    stream_patched_fn=None,
+    expect_agent_instrumentation=False,
+):
     original_fn = getattr(parent_class, method_name)
     patched_by_plugin = hasattr(original_fn, "is_patched_by_monitor")
-    # TODO - This seems to work but it feels like a bit of a hack. Need to coordinate on a better approach with agent team
     patched_by_agent = getattr(parent_class, "_nr_wrapped", False)
+    if expect_agent_instrumentation and not patched_by_agent:
+        logger.warn(
+            f"{parent_class.__name__}{method_name} should be instrumented by the python agent but it is not. Falling back to plugin instrumentation"
+        )
 
     if patched_by_plugin:
         return original_fn
@@ -32,10 +41,21 @@ def patched_call(parent_class, method_name, patched_fn, stream_patched_fn=None):
     return _inner_patch
 
 
-def patched_call_async(parent_class, method_name, patched_fn, stream_patched_fn=None):
+def patched_call_async(
+    parent_class,
+    method_name,
+    patched_fn,
+    stream_patched_fn=None,
+    expect_agent_instrumentation=False,
+):
     original_fn = getattr(parent_class, method_name)
     patched_by_plugin = hasattr(original_fn, "is_patched_by_monitor")
     patched_by_agent = getattr(parent_class, "_nr_wrapped", False)
+
+    if expect_agent_instrumentation and not patched_by_agent:
+        logger.warn(
+            f"{str(parent_class)}{method_name} should be instrumented by the python agent but it is not. Falling back to plugin instrumentation"
+        )
 
     if patched_by_plugin:
         return original_fn

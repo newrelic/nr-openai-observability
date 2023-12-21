@@ -314,7 +314,6 @@ def perform_patch_openai():
     (major, minor, revision) = openai_version
     too_new = major > 1
     requires_agent = major == 1
-    agent_or_plugin = major == 0 and minor >= 26
     too_old = major == 0 and minor < MIN_MINOR_VERSION
 
     supported_versions_msg = f"Versions between v{MIN_MAJOR_VERSION}.${MIN_MINOR_VERSION}.0 and <{MAX_MAJOR_VERSION + 1}.0 are supported"
@@ -338,28 +337,40 @@ def perform_patch_openai():
 
     try:
         openai.Embedding.create = patched_call(
-            openai.Embedding, "create", patcher_create_embedding
+            openai.Embedding,
+            "create",
+            patcher_create_embedding,
+            expect_agent_instrumentation=True,
         )
     except AttributeError:
         pass
 
     try:
         openai.Embedding.acreate = patched_call_async(
-            openai.Embedding, "acreate", patcher_create_embedding_async
+            openai.Embedding,
+            "acreate",
+            patcher_create_embedding_async,
+            expect_agent_instrumentation=True,
         )
     except AttributeError:
         pass
 
     try:
         openai.Completion.create = patched_call(
-            openai.Completion, "create", patcher_create_completion
+            openai.Completion,
+            "create",
+            patcher_create_completion,
+            expect_agent_instrumentation=False,
         )
     except AttributeError:
         pass
 
     try:
         openai.Completion.acreate = patched_call_async(
-            openai.Completion, "acreate", patcher_create_completion_async
+            openai.Completion,
+            "acreate",
+            patcher_create_completion_async,
+            expect_agent_instrumentation=False,
         )
     except AttributeError:
         pass
@@ -370,6 +381,7 @@ def perform_patch_openai():
             "create",
             patcher_create_chat_completion,
             patcher_create_chat_completion_stream,
+            expect_agent_instrumentation=True,
         )
     except AttributeError:
         pass
@@ -380,13 +392,17 @@ def perform_patch_openai():
             "acreate",
             patcher_create_chat_completion_async,
             patcher_create_chat_completion_stream_async,
+            expect_agent_instrumentation=True,
         )
     except AttributeError:
         pass
 
     try:
         openai.util.convert_to_openai_object = patched_call(
-            openai.util, "convert_to_openai_object", patcher_convert_to_openai_object
+            openai.util,
+            "convert_to_openai_object",
+            patcher_convert_to_openai_object,
+            expect_agent_instrumentation=False,
         )
     except AttributeError:
         pass
