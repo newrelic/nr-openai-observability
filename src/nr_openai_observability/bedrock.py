@@ -53,6 +53,7 @@ def perform_patch_bedrock():
     import botocore
 
     try:
+        logger.info("Instrumenting AWS Bedrock")
         botocore.client.ClientCreator.create_client = _patched_call(
             botocore.client.ClientCreator.create_client, patcher_aws_create_api
         )
