@@ -34,9 +34,12 @@ def patcher_create_chat_completion_stream(original_fn, *args, **kwargs):
                 trace.add_custom_attribute("completion_id", completion_id)
                 handle_start_completion(kwargs, completion_id)
                 for chunk in stream_gen:
-                    content += chunk.choices[0].delta.get("content", "")
-                    if hasattr(chunk.choices[0].delta, "role"):
-                        role = chunk.choices[0].delta.role
+                    if len(chunk.choices) > 0:
+                        content += chunk.choices[0].delta.get("content", "") or ""
+                        delta_role = getattr(chunk.choices[0].delta, "role", None)
+                        if delta_role:
+                            role = delta_role
+
                     yield chunk
                 time_delta = time.time() - timestamp
         except Exception as ex:
@@ -79,9 +82,12 @@ async def patcher_create_chat_completion_stream_async(original_fn, *args, **kwar
                 trace.add_custom_attribute("completion_id", completion_id)
                 handle_start_completion(kwargs, completion_id)
                 async for chunk in await stream_gen:
-                    content += chunk.choices[0].delta.get("content", "")
-                    if hasattr(chunk.choices[0].delta, "role"):
-                        role = chunk.choices[0].delta.role
+                    if len(chunk.choices) > 0:
+                        content += chunk.choices[0].delta.get("content", "") or ""
+                        delta_role = getattr(chunk.choices[0].delta, "role", None)
+                        if delta_role:
+                            role = delta_role
+
                     yield chunk
                 time_delta = time.time() - timestamp
         except Exception as ex:
