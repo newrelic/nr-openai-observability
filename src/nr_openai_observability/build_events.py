@@ -129,9 +129,17 @@ def calc_prompt_tokens(model, messages):
     for message in messages:
         num_of_tokens += num_of_tokens_per_msg
         for key, value in message.items():
-            num_of_tokens += len(encoding.encode(value))
             if key == "name":
                 num_of_tokens += num_of_tokens_per_name
+            elif isinstance(value, str):
+                num_of_tokens += len(encoding.encode(value))
+            # OpenAI function and tool calls result in an object-shaped prop in the message that holds the function name and a JSON-stringified dict of args
+            # There might be a more elegant way to do this looping with recursion but I'm not 100% sure what these objects will look like in the future
+            # and I'm nervous about infinite recursion cases
+            elif isinstance(value, dict):
+                for inner_val in value.values():
+                    if isinstance(inner_val, str):
+                        num_of_tokens += len(encoding.encode(inner_val))
 
     return num_of_tokens
 
