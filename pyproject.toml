@@ -20,18 +20,16 @@ keywords = [
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
-newrelic = { git = "https://github.com/newrelic/newrelic-python-agent.git", rev = "7051455f076d2f617719d9bf6ddbca6989fa0afd" }
-openai = ">=0.8,<0.30"
+newrelic = { git = "https://github.com/newrelic/newrelic-python-agent.git", rev = "510f747d54df4d4e6a6214eed5f6dcf5dc816621" }
+openai = ">=0.8,<2.0"
 tiktoken = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.2.1"
 
-
 [tool.poetry.group.dev.dependencies]
 langchain = "^0.0.300"
 chromadb = "^0.4.8"
-tiktoken = "^0.5.1"
 
 [tool.poetry.group.bedrock]
 optional = true
