@@ -20,8 +20,8 @@ keywords = [
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0.0"
-newrelic = { git = "https://github.com/newrelic/newrelic-python-agent.git", rev = "510f747d54df4d4e6a6214eed5f6dcf5dc816621" }
-openai = ">=0.8,<2.0"
+newrelic = { git = "https://github.com/newrelic/newrelic-python-agent.git", rev = "f0e84419e603ea262f6deb139338d33372988b76" }
+openai = ">=0.8,<0.30"
 tiktoken = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
