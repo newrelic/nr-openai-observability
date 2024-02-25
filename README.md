@@ -70,7 +70,9 @@ response = openai.ChatCompletion.create(
 print(response["choices"][0]["message"]["content"])
 ```
 
-#### STEP 3: Follow the instruction [here](https://one.newrelic.com/launcher/catalog-pack-details.launcher/?pane=eyJuZXJkbGV0SWQiOiJjYXRhbG9nLXBhY2stZGV0YWlscy5jYXRhbG9nLXBhY2stY29udGVudHMiLCJxdWlja3N0YXJ0SWQiOiI1ZGIyNWRiZC1hNmU5LTQ2ZmMtYTcyOC00Njk3ZjY3N2ZiYzYifQ==) to add the dashboard to your New Relic account.
+#### STEP 3: Browse and monitor your entity
+
+The LLM application entities can be found [here](https://one.newrelic.com/nr1-core?&filters=%28domain%20IN%20%28%27MLOPS%27%2C%20%27MLOPS%27%2C%20%27MLOPS%27%2C%20%27MLOPS%27%29%20AND%20type%20IN%20%28%27LLM_APPLICATION%27%2C%20%27MACHINE_LEARNING_ENDPOINT%27%2C%20%27MACHINE_LEARNING_MODEL%27%2C%20%27MACHINE_LEARNING_MODEL_DATA%27%29%29)
 
 ### EU Account Users:
 
